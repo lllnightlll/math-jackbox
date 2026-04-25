@@ -98,7 +98,7 @@
                 <div id="question-header"
                     class="flex justify-between items-center mb-4 text-sm text-gray-500 dark:text-gray-400">
                     <span id="question-index">Вопрос 1</span>
-                    <span id="question-timer">00:30</span>
+                    <span id="question-timer"></span>
                 </div>
 
                 <h2 id="question-text" class="text-2xl font-semibold mb-6">
@@ -158,7 +158,8 @@
         }
 
         let isGameAvailable = false;
-        let currentQuestion = null;
+        let questionsData = null;
+        let questionIndex = 0;
 
         async function fetchGameData() {
             try {
@@ -170,8 +171,10 @@
                 if (isGameAvailable) {
                     overlay.classList.remove('opacity-100', 'pointer-events-auto');
                     overlay.classList.add('opacity-0', 'pointer-events-none');
-                    if (!currentQuestion) {
-                        await loadQuestion();
+
+                    if (!questionsData) {
+                        await loadQuestionsFromJson();
+                        loadQuestion();
                     }
                 } else {
                     overlay.classList.remove('opacity-0', 'pointer-events-none');
@@ -192,13 +195,15 @@
         const questionTimerEl = document.getElementById('question-timer');
         const answersEl = document.getElementById('answers');
 
+        let currentQuestion = null;
         let currentQuestionId = null;
         let isAnswerSent = false;
         let timerIntervalId = null;
         let timeLeft = 0;
         let selectedOptionId = null;
 
-        async function loadQuestion() {
+
+        async function loadQuestionsFromJson() {
             try {
                 const resp = await fetch('current-question.json', {
                     method: 'GET',
@@ -206,15 +211,35 @@
                 });
 
                 if (!resp.ok) {
-                    console.error('Ошибка при получении вопроса', resp.status);
+                    console.error('Ошибка загрузки questions.json', resp.status);
                     return;
                 }
 
                 const data = await resp.json();
 
+                if (!data || !Array.isArray(data.questions) || data.questions.length === 0) {
+                    console.error('Пустой список вопросов в questions.json');
+                    return;
+                }
+
+                questionsData = data.questions;
+            } catch (err) {
+                console.error('Ошибка загрузки questions.json:', err);
+            }
+        }
+
+        async function loadQuestion() {
+            try {
+                if (!questionsData) {
+                    console.error('Вопросы ещё не загружены');
+                    return;
+                }
+                const data = questionsData[questionIndex];
+
                 if (!data || !data.question_id) {
-                    questionTextEl.textContent = 'Ожидание начала вопроса...';
+                    questionTextEl.textContent = 'Вопросы закончились';
                     answersEl.innerHTML = '';
+                    questionTimerEl.textContent = '';
                     return;
                 }
 
@@ -257,7 +282,8 @@
                         return;
                     }
                     timeLeft -= 1;
-                    questionTimerEl.textContent = `00:${String(timeLeft).padStart(2, '0')}`}, 1000);
+                    questionTimerEl.textContent = `00:${String(timeLeft).padStart(2, '0')}`
+                }, 1000);
             } catch (err) {
                 console.error('Ошибка загрузки вопроса:', err);
             }
@@ -282,6 +308,11 @@
                 b.disabled = true;
                 b.classList.add('opacity-70', 'cursor-not-allowed');
             });
+
+            setTimeout(() => {
+                questionIndex += 1;
+                loadQuestion();
+            }, 2000);
         }
 
 
@@ -352,7 +383,7 @@
             buttons.forEach(b => {
                 if (b.dataset.optionId === selectedOptionId) {
                     b.classList.add('border-pink-500', 'bg-pink-50', 'dark:border-pink-900/40', 'dark:bg-pink-900/40');
-                } 
+                }
             });
         }
     </script>

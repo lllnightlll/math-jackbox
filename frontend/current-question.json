@@ -1,13 +1,30 @@
 {
-  "question_id": "q1",
-  "index": 1,
-  "text": "Чему равно 2 + 2?",
-  "options": [
-    { "id": "a", "text": "3" },
-    { "id": "b", "text": "4" },
-    { "id": "c", "text": "5" },
-    { "id": "d", "text": "22" }
-  ],
-  "correct_option_id": "b",
-  "time_left": 5
+  "questions": [
+    {
+      "question_id": "q1",
+      "index": 1,
+      "text": "Чему равно 2 + 2?",
+      "options": [
+        { "id": "a", "text": "3" },
+        { "id": "b", "text": "4" },
+        { "id": "c", "text": "5" },
+        { "id": "d", "text": "22" }
+      ],
+      "correct_option_id": "d",
+      "time_left": 5
+    },
+    {
+      "question_id": "q2",
+      "index": 2,
+      "text": "Чему равно 3 + 5?",
+      "options": [
+        { "id": "a", "text": "7" },
+        { "id": "b", "text": "8" },
+        { "id": "c", "text": "9" },
+        { "id": "d", "text": "10" }
+      ],
+      "correct_option_id": "b",
+      "time_left": 5
+    }
+  ]
 }
