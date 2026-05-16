@@ -22,6 +22,7 @@
     </script>
 
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -117,6 +118,7 @@
     <script>
         const htmlEl = document.documentElement;
         const themeBtn = document.getElementById('theme-toggle');
+        let stompClient = null;
 
         themeBtn.addEventListener('click', () => {
             htmlEl.classList.toggle('dark');
@@ -158,8 +160,7 @@
         }
 
         let isGameAvailable = false;
-        let questionsData = null;
-        let questionIndex = 0;
+        let questionIndex = 1;
 
         async function fetchGameData() {
             try {
@@ -171,11 +172,6 @@
                 if (isGameAvailable) {
                     overlay.classList.remove('opacity-100', 'pointer-events-auto');
                     overlay.classList.add('opacity-0', 'pointer-events-none');
-
-                    if (!questionsData) {
-                        await loadQuestionsFromJson();
-                        loadQuestion();
-                    }
                 } else {
                     overlay.classList.remove('opacity-0', 'pointer-events-none');
                     overlay.classList.add('opacity-100', 'pointer-events-auto');
@@ -201,50 +197,25 @@
         let timerIntervalId = null;
         let timeLeft = 0;
         let selectedOptionId = null;
+        connect();
 
 
-        async function loadQuestionsFromJson() {
+
+        async function loadQuestion(data) {
             try {
-                const resp = await fetch('current-question.json', {
-                    method: 'GET',
-                    headers: { 'Accept': 'application/json' }
-                });
-
-                if (!resp.ok) {
-                    console.error('Ошибка загрузки questions.json', resp.status);
-                    return;
-                }
-
-                const data = await resp.json();
-
-                if (!data || !Array.isArray(data.questions) || data.questions.length === 0) {
-                    console.error('Пустой список вопросов в questions.json');
-                    return;
-                }
-
-                questionsData = data.questions;
-            } catch (err) {
-                console.error('Ошибка загрузки questions.json:', err);
-            }
-        }
-
-        async function loadQuestion() {
-            try {
-                if (!questionsData) {
-                    console.error('Вопросы ещё не загружены');
-                    return;
-                }
-                const data = questionsData[questionIndex];
-
-                if (!data || !data.question_id) {
+                if (!data || !data.text) {
+                    console.error('Некорректные данные вопроса:', data);
                     questionTextEl.textContent = 'Вопросы закончились';
                     answersEl.innerHTML = '';
                     questionTimerEl.textContent = '';
                     return;
                 }
 
-                currentQuestionId = data.question_id;
-                currentQuestion = data;
+                currentQuestionId = null;
+                currentQuestion = {
+                    ...data,
+                    time_left: data.secondsLeft
+                };
                 isAnswerSent = false;
                 selectedOptionId = null;
 
@@ -253,23 +224,25 @@
                     timerIntervalId = null;
                 }
 
-                questionIndexEl.textContent = `Вопрос ${data.index}`;
+                questionIndexEl.textContent = `Вопрос ${questionIndex}`;
                 questionTextEl.textContent = data.text;
-                timeLeft = data.time_left ?? 0;
-                questionTimerEl.textContent = `00:${String(data.time_left).padStart(2, '0')}`;
+                timeLeft = data.secondsLeft ?? 0;
+                questionTimerEl.textContent = `00:${String(timeLeft).padStart(2, '0')}`;
 
                 // 4 кнопки
                 answersEl.innerHTML = '';
-                data.options.forEach(option => {
+                data.options.forEach((optionText, idx) => {
+                    const optionId = String(idx);
                     const btn = document.createElement('button');
+                    
                     btn.type = 'button';
-                    btn.textContent = option.text;
+                    btn.textContent = optionText;
                     btn.className =
                         'w-full py-3 px-4 rounded-xl border border-gray-200 dark:border-gray-700 ' +
                         'bg-gray-50 dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/40 ' +
                         'text-left transition flex items-center gap-3';
-                    btn.dataset.optionId = option.id;
-                    btn.onclick = () => handleAnswerClick(option.id, btn);
+                    btn.dataset.optionId = optionId;
+                    btn.onclick = () => handleAnswerClick(optionId, btn);
 
                     answersEl.appendChild(btn);
                 });
@@ -309,44 +282,15 @@
                 b.classList.add('opacity-70', 'cursor-not-allowed');
             });
 
-            setTimeout(() => {
-                questionIndex += 1;
-                loadQuestion();
-            }, 2000);
+            questionIndex += 1;
         }
 
 
 
-        //удалить при появлении бэка
-        const originalFetch = window.fetch;
-        window.fetch = async (input, init = {}) => {
-            const url = typeof input === 'string' ? input : input.url;
-            if (url === '/api/answer' && init && init.method === 'POST') {
-                const body = JSON.parse(init.body || '{}');
-                const isCorrect = body.option_id === (currentQuestion?.correct_option_id ?? 'b');
-
-                const mockResponse = {
-                    ok: true,
-                    correct: isCorrect,
-                    time_left: currentQuestion ? currentQuestion.time_left - 1 : 19
-                };
-
-                return new Response(JSON.stringify(mockResponse), {
-                    status: 200,
-                    headers: { 'Content-Type': 'application/json' }
-                });
-            }
-            // остальные запросы идут как обычно
-            return originalFetch(input, init);
-        };
-
-
-
         async function handleAnswerClick(optionId, btnEl) {
-            if (!currentQuestionId || isAnswerSent) return;
+            if (/*!currentQuestionId || */isAnswerSent) return;
             isAnswerSent = true;
             selectedOptionId = optionId;
-            const isCorrect = optionId === currentQuestion.correct_option_id;
 
             // Визуально подсветить выбранный ответ
             const buttons = answersEl.querySelectorAll('button');
@@ -357,35 +301,50 @@
             btnEl.classList.add('border-blue-500', 'bg-blue-50', 'dark:bg-blue-900/40');
 
             try {
-                const resp = await fetch('/api/answer', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        question_id: currentQuestionId,
-                        option_id: optionId
-                    })
+                stompClient.publish({
+                    destination: '/app/answer',
+                    body: JSON.stringify({ chosenOptionIndex: optionId })
                 });
-
-                if (!resp.ok) {
-                    console.error('Ошибка отправки ответа', resp.status);
-                    return;
-                }
-
-                const data = await resp.json();
-                console.log('Ответ принят:', data);
+                console.log('Ответ принят:', optionId)
             } catch (err) {
                 console.error('Ошибка при отправке ответа:', err);
             }
 
-            buttons.forEach(b => {
+            /*buttons.forEach(b => {
                 if (b.dataset.optionId === selectedOptionId) {
                     b.classList.add('border-pink-500', 'bg-pink-50', 'dark:border-pink-900/40', 'dark:bg-pink-900/40');
                 }
-            });
+            });*/
         }
+
+        async function connect() {
+            stompClient = new window.StompJs.Client({
+                brokerURL: 'ws://localhost:8080/ws',
+            });
+
+            stompClient.onConnect = (frame) => {
+                console.log("Успешно подключено к WebSocket!");
+                stompClient.subscribe('/topic/game', (message) => {
+                    const data = JSON.parse(message.body);
+
+                    if (data.type === 'NEW_QUESTION') {
+                        loadQuestion(data);
+                    } else if (message.body === "GAME_OVER") {
+                        questionTextEl.textContent = 'Игра окончена';
+                        answersEl.innerHTML = '';
+                        questionTimerEl.textContent = '';
+                        return;
+                    }
+                });
+            };
+
+            stompClient.onStompError = (frame) => {
+                console.error('STOMP error:', frame.headers['message'], frame.body);
+            };
+
+            stompClient.activate();
+        }
+
     </script>
 </body>
 
