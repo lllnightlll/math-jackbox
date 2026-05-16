@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Quiz Tester</title>
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 20px; line-height: 1.6; }
+        #question-box { background: #f4f4f4; padding: 15px; border-radius: 8px; margin-top: 10px; border: 1px solid #ddd; }
+        .option-btn { background: #007bff; color: white; border: none; padding: 10px 20px; margin: 5px; cursor: pointer; border-radius: 4px; }
+        .option-btn:hover { background: #0056b3; }
+        #log { background: #333; color: #fff; padding: 10px; height: 200px; overflow-y: scroll; font-family: monospace; margin-top: 20px; }
+    </style>
+</head>
+<body>
+<h2>Эмулятор Игрока</h2>
+
+<button onclick="connect()" id="connect-btn">1. Подключиться к игре</button>
+
+<div id="game-area" style="display:none;">
+    <div id="question-box">
+        <h3 id="question-text">Ожидание вопроса от сервера...</h3>
+        <div id="options-area"></div>
+    </div>
+    <p><i>Нажми на вариант ответа и смотри логи в IntelliJ IDEA</i></p>
+</div>
+
+<div id="log">
+    <div>Здесь будут системные логи...</div>
+</div>
+
+<script>
+    let stompClient = null;
+
+    function log(msg) {
+        const logDiv = document.getElementById("log");
+        logDiv.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function connect() {
+        stompClient = new window.StompJs.Client({
+            brokerURL: 'ws://localhost:8080/ws',
+        });
+
+        stompClient.onConnect = (frame) => {
+            log("Успешно подключено к WebSocket!");
+            document.getElementById("connect-btn").style.backgroundColor = "lightgreen";
+            document.getElementById("game-area").style.display = "block";
+
+            stompClient.subscribe('/topic/game', (message) => {
+                log("Пришло сообщение: " + message.body);
+                const data = JSON.parse(message.body);
+
+                if (data.type === 'NEW_QUESTION') {
+                    showQuestion(data);
+                } else if (message.body === "GAME_OVER") {
+                    document.getElementById("question-text").innerText = "ИГРА ОКОНЧЕНА";
+                    document.getElementById("options-area").innerHTML = "";
+                }
+            });
+        };
+
+        stompClient.activate();
+    }
+
+    function showQuestion(data) {
+        document.getElementById("question-text").innerText = data.text;
+        const optionsArea = document.getElementById("options-area");
+        optionsArea.innerHTML = ""; // Очистить старые кнопки
+
+        data.options.forEach((opt, index) => {
+            const btn = document.createElement("button");
+            btn.className = "option-btn";
+            btn.innerText = opt;
+            btn.onclick = () => sendAnswer(index);
+            optionsArea.appendChild(btn);
+        });
+    }
+
+    function sendAnswer(index) {
+        log("Отправляю ответ: индекс " + index);
+        stompClient.publish({
+            destination: '/app/answer',
+            body: JSON.stringify({ chosenOptionIndex: index })
+        });
+    }
+</script>
+</body>
+</html>
