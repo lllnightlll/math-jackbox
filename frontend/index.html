@@ -227,6 +227,7 @@
                 questionIndexEl.textContent = `Вопрос ${questionIndex}`;
                 questionTextEl.textContent = data.text;
                 timeLeft = data.secondsLeft ?? 0;
+                timeLeft -= 5;
                 questionTimerEl.textContent = `00:${String(timeLeft).padStart(2, '0')}`;
 
                 // 4 кнопки
@@ -234,7 +235,7 @@
                 data.options.forEach((optionText, idx) => {
                     const optionId = String(idx);
                     const btn = document.createElement('button');
-                    
+
                     btn.type = 'button';
                     btn.textContent = optionText;
                     btn.className =
@@ -317,6 +318,76 @@
             });*/
         }
 
+        async function renderLeaderboard(leaderboardMap) {
+            if (timerIntervalId) {
+                clearInterval(timerIntervalId);
+                timerIntervalId = null;
+            }
+
+            questionIndexEl.textContent = 'Результаты игры';
+            questionTimerEl.textContent = '';
+
+            if (!leaderboardMap || typeof leaderboardMap !== 'object') {
+                questionTextEl.textContent = 'Игра окончена. Нет результатов.';
+                answersEl.innerHTML = '';
+                return;
+            }
+
+            const leaderboard = Object.entries(leaderboardMap)
+                .map(([name, score]) => ({
+                    name,
+                    score: Number(score) || 0
+                }))
+                .sort((a, b) => b.score - a.score);
+
+            if (leaderboard.length === 0) {
+                questionTextEl.textContent = 'Игра окончена. Нет результатов.';
+                answersEl.innerHTML = '';
+                return;
+            }
+
+            questionTextEl.textContent = 'Игра окончена. Топ игроков:';
+
+            const table = document.createElement('div');
+            table.className = 'w-full flex flex-col gap-2';
+
+            leaderboard
+                .sort((a, b) => b.score - a.score)
+                .forEach((player, index) => {
+                    const row = document.createElement('div');
+                    row.className =
+                        'flex items-center justify-between px-4 py-2 rounded-xl ' +
+                        (index === 0
+                            ? 'bg-yellow-100 dark:bg-yellow-900/40'
+                            : 'bg-gray-100 dark:bg-gray-800');
+
+                    const left = document.createElement('div');
+                    left.className = 'flex items-center gap-3';
+
+                    const place = document.createElement('span');
+                    place.className = 'w-6 text-center font-semibold';
+                    place.textContent = `${index + 1}.`;
+
+                    const name = document.createElement('span');
+                    name.className = 'font-medium';
+                    name.textContent = player.name ?? 'Без имени';
+
+                    left.appendChild(place);
+                    left.appendChild(name);
+
+                    const score = document.createElement('span');
+                    score.className = 'font-semibold';
+                    score.textContent = `${player.score} очков`;
+
+                    row.appendChild(left);
+                    row.appendChild(score);
+                    table.appendChild(row);
+                });
+
+            answersEl.innerHTML = '';
+            answersEl.appendChild(table);
+        }
+
         async function connect() {
             stompClient = new window.StompJs.Client({
                 brokerURL: 'ws://localhost:8080/ws',
@@ -329,10 +400,8 @@
 
                     if (data.type === 'NEW_QUESTION') {
                         loadQuestion(data);
-                    } else if (message.body === "GAME_OVER") {
-                        questionTextEl.textContent = 'Игра окончена';
-                        answersEl.innerHTML = '';
-                        questionTimerEl.textContent = '';
+                    } else if (data.type === "GAME_OVER") {
+                        renderLeaderboard(data.score);
                         return;
                     }
                 });
