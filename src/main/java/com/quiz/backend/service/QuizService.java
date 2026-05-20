@@ -35,9 +35,7 @@ public class QuizService {
 
     @Scheduled(fixedRate = 10000)
     @Transactional(readOnly = true)
-
     public void nextQuestion() {
-//        List<Question> questions = questionRepository.findAll();
         List<Question> questions = questionRepository.findAllWithOptions();
 
         if (questions.isEmpty()) {
@@ -47,8 +45,21 @@ public class QuizService {
 
         // Выводим отсортированный по очкам список игроков по окончанию игры
         if (currentQuestionIndex >= questions.size()) {
-            log.info("Игра окончена! Итоговые очки: {}", playerScores);
-            List<GameResultDTO.PlayerScore> result = playerScores.entrySet().stream()
+            log.info("Игра окончена! Записываем результаты в БД...");
+
+            // 1. Обновляем глобальный счет каждого игрока в БД
+            playerScores.forEach((sessionId, matchScore) -> {
+                playerRepository.findBySessionId(sessionId).ifPresent(player -> {
+                    // Прибавляем очки за текущий матч к глобальным очкам в БД
+                    player.setScore(player.getScore() + matchScore);
+                    playerRepository.save(player); // Сохраняем в БД
+                });
+            });
+
+            // 2. Формируем результаты текущего матча (для отправки игрокам)
+            List<GameResultDTO.PlayerScore> matchResult =
+                    playerScores.entrySet()
+                            .stream()
                     .map(entry -> {
                         String nickname = playerRepository.findBySessionId(entry.getKey())
                                 .map(Player::getNickname)
@@ -58,15 +69,27 @@ public class QuizService {
                     .sorted((a, b) -> Integer.compare(b.getScore(), a.getScore()))
                     .toList();
 
-            messagingTemplate.convertAndSend("/topic/game", new GameResultDTO("GAME_RESULT", result));
+            // Отправляем результаты матча
+            messagingTemplate.convertAndSend("/topic/game", new GameResultDTO("GAME_RESULT", matchResult));
+
+            // 3. Достаем ТОП-10 игроков за всё время из БД и отправляем Глобальный Рейтинг
+            List<GlobalLeaderboardDTO.PlayerRow> globalTop = playerRepository.findTop10ByOrderByScoreDesc()
+                    .stream()
+                    .map(p -> new GlobalLeaderboardDTO.PlayerRow(p.getNickname(), p.getScore()))
+                    .toList();
+
+            // Отправляем глобальный топ
+            messagingTemplate.convertAndSend("/topic/game", new GlobalLeaderboardDTO("GLOBAL_LEADERBOARD", globalTop));
+
+            // Сбрасываем игру
             currentQuestionIndex = 0;
+            playerScores.clear();
             return;
         }
 
         answeredPlayers.clear();
         log.info("Новый раунд: сброс ответивших игроков");
 
-        // 1. Запоминаем текущий вопрос перед отправкой
         currentQuestionObject = questions.get(currentQuestionIndex);
 
         QuestionDTO dto = new QuestionDTO();
