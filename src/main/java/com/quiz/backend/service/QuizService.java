@@ -1,17 +1,19 @@
 package com.quiz.backend.service;
 
 import com.quiz.backend.dto.GameResultDTO;
+import com.quiz.backend.dto.GlobalLeaderboardDTO;
+import com.quiz.backend.dto.LobbyUpdateDTO;
 import com.quiz.backend.dto.QuestionDTO;
 import com.quiz.backend.model.Player;
 import com.quiz.backend.model.Question;
 import com.quiz.backend.repository.PlayerRepository;
 import com.quiz.backend.repository.QuestionRepository;
-import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,7 +45,7 @@ public class QuizService {
             return;
         }
 
-        // Выводим отсортированный по очкам список игроков по окончанию игры
+        // --- БЛОК ОКОНЧАНИЯ ИГРЫ ---
         if (currentQuestionIndex >= questions.size()) {
             log.info("Игра окончена! Записываем результаты в БД...");
 
@@ -120,30 +122,62 @@ public class QuizService {
             return;
         }
 
+        // Проверяем, зарегистрирован ли игрок
         Optional<Player> playerOpt = playerRepository.findBySessionId(sessionId);
-        Player player = playerOpt.orElseGet(() -> {
-            Player newPlayer = new Player();
-            newPlayer.setSessionId(sessionId);
-            newPlayer.setNickname("Player_" + sessionId.substring(0,8));
-            newPlayer.setScore(0);
-            return newPlayer;
-                });
+        if (playerOpt.isEmpty()) {
+            log.warn("Попытка ответить без регистрации: {}", sessionId);
+            answeredPlayers.remove(sessionId);
+            return;
+        }
 
-        // 2. Сверяем индекс ответа с правильным в текущем вопросе
+        // Проверяем ответ
         boolean isCorrect = (answerIndex == currentQuestionObject.getCorrectOptionIndex());
 
         if (isCorrect) {
-            // Начисляем 10 баллов. getOrDefault защищает от ошибок, если игрока еще нет в карте
+            // ТЕПЕРЬ МЫ МЕНЯЕМ ОЧКИ ТОЛЬКО В ОПЕРАТИВКЕ (playerScores)
+            // Базу данных во время раунда мы вообще не трогаем!
             int newScore = playerScores.getOrDefault(sessionId, 0) + 10;
             playerScores.put(sessionId, newScore);
-            player.setScore(newScore);
-            playerRepository.save(player);
-            log.info("Игрок {} ответил ПРАВИЛЬНО! Очков: {}", sessionId, newScore);
+            log.info("Игрок {} ответил ПРАВИЛЬНО! Очков в матче: {}", sessionId, newScore);
         } else {
             log.info("Игрок {} ошибся.", sessionId);
         }
+    }
 
-        // 3. Отправим игроку ЛИЧНОЕ сообщение (не всем), правильно он ответил или нет
-        // В STOMP для этого есть механизм, но для MVP можно пока просто слать в общий лог или оставить так.
+    @Transactional
+    public void registerPlayer(String sessionId, String nickname) {
+        // Ищем игрока в БД по НИКНЕЙМУ, а не по сессии!
+        Player player = playerRepository.findByNickname(nickname) // Нужен метод в репозитории
+                .orElse(new Player());
+
+        // Обновляем сессию на актуальную (новую)
+        player.setSessionId(sessionId);
+
+        // Если это новый игрок, заполняем поля
+        if (player.getId() == null) {
+            player.setNickname(nickname);
+            player.setScore(0);
+        }
+
+        playerRepository.save(player);
+
+        // Инициализируем/обновляем его очки в мапе текущего матча
+        playerScores.put(sessionId, 0);
+
+        log.info("Игрок '{}' вошел в игру. Глобальный счет в БД: {}. Новая сессия: {}",
+                nickname, player.getScore(), sessionId);
+
+        broadcastLobbyUpdate();
+    }
+
+    private void broadcastLobbyUpdate() {
+        // Достаем из БД имена всех активных игроков (у которых score в памяти инициализирован)
+        List<String> activeNicknames = playerScores.keySet().stream()
+                .map(sessionId -> playerRepository.findBySessionId(sessionId)
+                        .map(Player::getNickname)
+                        .orElse("Anonymous"))
+                .toList();
+
+        messagingTemplate.convertAndSend("/topic/game", new LobbyUpdateDTO(activeNicknames));
     }
 }
