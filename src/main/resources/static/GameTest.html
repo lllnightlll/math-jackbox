@@ -2,31 +2,79 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Quiz Tester</title>
+    <title>Quiz with Global Leaderboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
     <style>
         body { font-family: sans-serif; margin: 20px; line-height: 1.6; }
         #question-box { background: #f4f4f4; padding: 15px; border-radius: 8px; margin-top: 10px; border: 1px solid #ddd; }
         .option-btn { background: #007bff; color: white; border: none; padding: 10px 20px; margin: 5px; cursor: pointer; border-radius: 4px; }
         .option-btn:hover { background: #0056b3; }
-        #log { background: #333; color: #fff; padding: 10px; height: 200px; overflow-y: scroll; font-family: monospace; margin-top: 20px; }
+
+        #log {
+            background: #333;
+            color: #fff;
+            padding: 10px;
+            height: 120px;
+            overflow-y: scroll;
+            font-family: monospace;
+            margin-top: 20px;
+        }
+
+        #lobby {
+            background: #e2f0d9;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .result-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        .result-box {
+            width: 48%;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
     </style>
 </head>
 <body>
-<h2>Эмулятор Игрока</h2>
+<h2>Фигаро MathQuizz</h2>
 
-<button onclick="connect()" id="connect-btn">1. Подключиться к игре</button>
+<div id="reg-area">
+    <input type="text" id="nickname" placeholder="Введи свой никнейм"/>
+    <button onclick="connectAndRegister()" id="connect-btn">Войти в игру</button>
+</div>
+
+<div id="lobby" style="display:none;">
+    <h3>Игроки в лобби:</h3>
+    <ul id="player-list"></ul>
+</div>
 
 <div id="game-area" style="display:none;">
     <div id="question-box">
-        <h3 id="question-text">Ожидание вопроса от сервера...</h3>
+        <h3 id="question-text">Ожидание начала раунда от сервера...</h3>
         <div id="options-area"></div>
     </div>
-    <p><i>Нажми на вариант ответа и смотри логи в IntelliJ IDEA</i></p>
+</div>
+
+<div class="result-container" id="results-area" style="display:none;">
+    <div class="result-box">
+        <h3>Победители матча:</h3>
+        <ol id="match-results-list"></ol>
+    </div>
+    <div class="result-box" style="background: #fff3cd;">
+        <h3>🏆 ГЛОБАЛЬНЫЙ ТОП-10 за всё время:</h3>
+        <ol id="global-results-list"></ol>
+    </div>
 </div>
 
 <div id="log">
-    <div>Здесь будут системные логи...</div>
+    <div>Системные логи...</div>
 </div>
 
 <script>
@@ -38,25 +86,44 @@
         logDiv.scrollTop = logDiv.scrollHeight;
     }
 
-    function connect() {
+    function connectAndRegister() {
+        const nickname = document.getElementById("nickname").value.trim();
+        if (!nickname) {
+            alert("Пожалуйста, введи никнейм!");
+            return;
+        }
+
         stompClient = new window.StompJs.Client({
             brokerURL: 'ws://localhost:8080/ws',
         });
 
         stompClient.onConnect = (frame) => {
-            log("Успешно подключено к WebSocket!");
-            document.getElementById("connect-btn").style.backgroundColor = "lightgreen";
+            log("Успешно подключено!");
+            document.getElementById("reg-area").style.display = "none";
+            document.getElementById("lobby").style.display = "block";
             document.getElementById("game-area").style.display = "block";
 
+            stompClient.publish({
+                destination: '/app/register',
+                body: JSON.stringify({nickname: nickname})
+            });
+
             stompClient.subscribe('/topic/game', (message) => {
-                log("Пришло сообщение: " + message.body);
+                log("Пришло сообщение");
                 const data = JSON.parse(message.body);
 
-                if (data.type === 'NEW_QUESTION') {
+                if (data.type === 'LOBBY_UPDATE') {
+                    updateLobbyUI(data.players);
+                } else if (data.type === 'NEW_QUESTION') {
+                    document.getElementById("results-area").style.display = "none";
+                    document.getElementById("game-area").style.display = "block";
                     showQuestion(data);
-                } else if (message.body === "GAME_OVER") {
-                    document.getElementById("question-text").innerText = "ИГРА ОКОНЧЕНА";
-                    document.getElementById("options-area").innerHTML = "";
+                } else if (data.type === 'GAME_RESULT') {
+                    document.getElementById("game-area").style.display = "none";
+                    document.getElementById("results-area").style.display = "flex";
+                    showMatchResults(data.scores);
+                } else if (data.type === 'GLOBAL_LEADERBOARD') {
+                    showGlobalResults(data.leaderboard);
                 }
             });
         };
@@ -64,10 +131,20 @@
         stompClient.activate();
     }
 
+    function updateLobbyUI(players) {
+        const list = document.getElementById("player-list");
+        list.innerHTML = "";
+        players.forEach(p => {
+            const li = document.createElement("li");
+            li.innerText = p;
+            list.appendChild(li);
+        });
+    }
+
     function showQuestion(data) {
         document.getElementById("question-text").innerText = data.text;
         const optionsArea = document.getElementById("options-area");
-        optionsArea.innerHTML = ""; // Очистить старые кнопки
+        optionsArea.innerHTML = "";
 
         data.options.forEach((opt, index) => {
             const btn = document.createElement("button");
@@ -79,10 +156,30 @@
     }
 
     function sendAnswer(index) {
-        log("Отправляю ответ: индекс " + index);
+        log("Отправлен ответ " + index);
         stompClient.publish({
             destination: '/app/answer',
             body: JSON.stringify({ chosenOptionIndex: index })
+        });
+    }
+
+    function showMatchResults(scores) {
+        const list = document.getElementById("match-results-list");
+        list.innerHTML = "";
+        scores.forEach(s => {
+            const li = document.createElement("li");
+            li.innerText = `${s.nickname}: +${s.score} очков в этом матче`;
+            list.appendChild(li);
+        });
+    }
+
+    function showGlobalResults(leaderboard) {
+        const list = document.getElementById("global-results-list");
+        list.innerHTML = "";
+        leaderboard.forEach(row => {
+            const li = document.createElement("li");
+            li.innerHTML = `<b>${row.nickname}</b>: ${row.globalScore} очков за всё время`;
+            list.appendChild(li);
         });
     }
 </script>

@@ -1,6 +1,7 @@
 package com.quiz.backend.controller;
 
 import com.quiz.backend.dto.AnswerDTO;
+import com.quiz.backend.dto.RegisterDTO;
 import com.quiz.backend.service.QuizService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.Header;
@@ -18,5 +19,10 @@ public class QuizController {
     public void handleAnswer(AnswerDTO answer, @Header("simpSessionId") String sessionId) {
         // Мы используем @Header("simpSessionId"), чтобы знать, КТО ответил
         quizService.processAnswer(sessionId, answer.getChosenOptionIndex());
+    }
+
+    @MessageMapping("/register")
+    public void registerPlayer(RegisterDTO registerDTO, @Header("simpSessionId") String sessionId) {
+        quizService.registerPlayer(sessionId, registerDTO.getNickname());
     }
 }
