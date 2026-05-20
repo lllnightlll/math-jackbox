@@ -84,6 +84,11 @@ public class QuizService {
             messagingTemplate.convertAndSend("/topic/game", new GlobalLeaderboardDTO("GLOBAL_LEADERBOARD", globalTop));
 
             // Сбрасываем игру
+            try {
+                Thread.sleep(5000); // пауза в 2 секунды
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
             currentQuestionIndex = 0;
             playerScores.clear();
             return;

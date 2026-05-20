@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru" class="light">
+<html lang="ru" class="nigger">
 
 <head>
     <meta charset="UTF-8">
@@ -93,13 +93,61 @@
 
     <main
         class="flex-grow max-w-7xl mx-auto w-full p-4 lg:p-8 flex flex-col lg:flex-row items-start gap-6 relative z-10">
-        <div id="question-container" class="w-full lg:w-2/3 mx-auto">
+
+        <div id="register-screen" class="w-full lg:w-2/3 mx-auto">
+            <div
+                class="bg-white dark:bg-gray-800 rounded-3xl shadow-md border border-gray-200 dark:border-gray-700 p-6 md:p-8">
+                <h2 class="text-2xl font-semibold mb-4">Вход в игру</h2>
+
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                    Введите никнейм, чтобы присоединиться к игре.
+                </p>
+
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mt-2">
+                    <input id="nickname" type="text" placeholder="Введите никнейм" class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700
+                         bg-white dark:bg-gray-800 focus:outline-none focus:ring-2
+                         focus:ring-blue-500 text-sm" />
+
+                    <button id="register-btn" type="button" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium
+                         hover:bg-blue-700 active:bg-blue-800 transition">
+                        Войти в игру
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="question-container" class="w-full lg:w-2/3 mx-auto hidden">
             <div
                 class="bg-white dark:bg-gray-800 rounded-3xl shadow-md border border-gray-200 dark:border-gray-700 p-6 md:p-8">
                 <div id="question-header"
                     class="flex justify-between items-center mb-4 text-sm text-gray-500 dark:text-gray-400">
                     <span id="question-index">Вопрос 1</span>
-                    <span id="question-timer"></span>
+                    <div class="flex items-center gap-2">
+                        <span id="question-timer"></span>
+                        <button id="top-button" type="button" class="hidden p-2 rounded-lg bg-gray-200 dark:bg-gray-700
+             hover:bg-gray-300 dark:hover:bg-gray-600 transition" title="Топ этой игры"><svg id="theme-icon"
+                                class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 16V19" stroke="#1C274C" stroke-width="1.5" stroke-linecap="round" />
+                                <path
+                                    d="M15.5 22H8.5L8.83922 20.3039C8.93271 19.8365 9.34312 19.5 9.8198 19.5H14.1802C14.6569 19.5 15.0673 19.8365 15.1608 20.3039L15.5 22Z"
+                                    stroke="#1C274C" stroke-width="1.5" stroke-linecap="round"
+                                    stroke-linejoin="round" />
+                                <path
+                                    d="M19 5L19.9486 5.31621C20.9387 5.64623 21.4337 5.81124 21.7168 6.20408C22 6.59692 22 7.11873 21.9999 8.16234L21.9999 8.23487C21.9999 9.09561 21.9999 9.52598 21.7927 9.87809C21.5855 10.2302 21.2093 10.4392 20.4569 10.8572L17.5 12.5"
+                                    stroke="#1C274C" stroke-width="1.5" />
+                                <path
+                                    d="M4.99994 5L4.05132 5.31621C3.06126 5.64623 2.56623 5.81124 2.2831 6.20408C1.99996 6.59692 1.99997 7.11873 2 8.16234L2 8.23487C2.00003 9.09561 2.00004 9.52598 2.20723 9.87809C2.41441 10.2302 2.79063 10.4392 3.54305 10.8572L6.49994 12.5"
+                                    stroke="#1C274C" stroke-width="1.5" />
+                                <path
+                                    d="M11.1459 6.02251C11.5259 5.34084 11.7159 5 12 5C12.2841 5 12.4741 5.34084 12.8541 6.02251L12.9524 6.19887C13.0603 6.39258 13.1143 6.48944 13.1985 6.55334C13.2827 6.61725 13.3875 6.64097 13.5972 6.68841L13.7881 6.73161C14.526 6.89857 14.895 6.98205 14.9828 7.26432C15.0706 7.54659 14.819 7.84072 14.316 8.42898L14.1858 8.58117C14.0429 8.74833 13.9714 8.83191 13.9392 8.93531C13.9071 9.03872 13.9179 9.15023 13.9395 9.37327L13.9592 9.57632C14.0352 10.3612 14.0733 10.7536 13.8435 10.9281C13.6136 11.1025 13.2682 10.9435 12.5773 10.6254L12.3986 10.5431C12.2022 10.4527 12.1041 10.4075 12 10.4075C11.8959 10.4075 11.7978 10.4527 11.6014 10.5431L11.4227 10.6254C10.7318 10.9435 10.3864 11.1025 10.1565 10.9281C9.92674 10.7536 9.96476 10.3612 10.0408 9.57632L10.0605 9.37327C10.0821 9.15023 10.0929 9.03872 10.0608 8.93531C10.0286 8.83191 9.95713 8.74833 9.81418 8.58117L9.68403 8.42898C9.18097 7.84072 8.92945 7.54659 9.01723 7.26432C9.10501 6.98205 9.47396 6.89857 10.2119 6.73161L10.4028 6.68841C10.6125 6.64097 10.7173 6.61725 10.8015 6.55334C10.8857 6.48944 10.9397 6.39258 11.0476 6.19887L11.1459 6.02251Z"
+                                    stroke="#1C274C" stroke-width="1.5" />
+                                <path d="M18 22H6" stroke="#1C274C" stroke-width="1.5" stroke-linecap="round" />
+                                <path
+                                    d="M17 2.45597C17.7415 2.59747 18.1811 2.75299 18.5609 3.22083C19.0367 3.80673 19.0115 4.43998 18.9612 5.70647C18.7805 10.2595 17.7601 16 12.0002 16C6.24021 16 5.21983 10.2595 5.03907 5.70647C4.98879 4.43998 4.96365 3.80673 5.43937 3.22083C5.91508 2.63494 6.48445 2.53887 7.62318 2.34674C8.74724 2.15709 10.2166 2 12.0002 2C12.7184 2 13.3857 2.02548 14 2.06829"
+                                    stroke="#1C274C" stroke-width="1.5" stroke-linecap="round" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 <h2 id="question-text" class="text-2xl font-semibold mb-6">
@@ -118,11 +166,44 @@
     <script>
         const htmlEl = document.documentElement;
         const themeBtn = document.getElementById('theme-toggle');
+
         let stompClient = null;
+        let currentQuestion = null;
+        let currentQuestionId = null;
+        let isAnswerSent = false;
+        let timerIntervalId = null;
+        let timeLeft = 0;
+        let selectedOptionId = null;
+        let questionIndex = 1;
+        let isGameAvailable = false;
+        let GAME_RESULT = null;
+        let GLOBAL_LEADERBOARD = null;
+        let currentTopMode = 'GAME';
+
+        const registerScreenEl = document.getElementById('register-screen');
+        const questionContainerEl = document.getElementById('question-container');
+        const nicknameInputEl = document.getElementById('nickname');
+        const registerBtnEl = document.getElementById('register-btn');
+
+        const questionTextEl = document.getElementById('question-text');
+        const questionIndexEl = document.getElementById('question-index');
+        const questionTimerEl = document.getElementById('question-timer');
+        const answersEl = document.getElementById('answers');
+        const topButtonEl = document.getElementById('top-button');
+
+        registerBtnEl.addEventListener('click', register);
 
         themeBtn.addEventListener('click', () => {
             htmlEl.classList.toggle('dark');
             localStorage.theme = htmlEl.classList.contains('dark') ? 'dark' : 'light';
+        });
+
+        topButtonEl.addEventListener('click', () => {
+            if (!Array.isArray(GLOBAL_LEADERBOARD)) {
+                return;
+            }
+            currentTopMode = currentTopMode === 'GAME' ? 'GLOBAL' : 'GAME';
+            tryShowTop();
         });
 
 
@@ -159,9 +240,6 @@
             }
         }
 
-        let isGameAvailable = false;
-        let questionIndex = 1;
-
         async function fetchGameData() {
             try {
                 const data = { available: true, game: null };
@@ -186,18 +264,66 @@
 
 
 
-        const questionTextEl = document.getElementById('question-text');
-        const questionIndexEl = document.getElementById('question-index');
-        const questionTimerEl = document.getElementById('question-timer');
-        const answersEl = document.getElementById('answers');
+        async function register() {
+            const nickname = nicknameInputEl.value.trim();
 
-        let currentQuestion = null;
-        let currentQuestionId = null;
-        let isAnswerSent = false;
-        let timerIntervalId = null;
-        let timeLeft = 0;
-        let selectedOptionId = null;
-        connect();
+            if (!nickname) {
+                alert('Пожалуйста, введи никнейм!');
+                nicknameInputEl.focus();
+                return;
+            }
+
+            window.playerNickname = nickname;
+
+            registerScreenEl.classList.add('hidden');
+            questionContainerEl.classList.remove('hidden');
+
+            questionTextEl.textContent = 'Загрузка вопроса...';
+            questionTimerEl.textContent = '';
+            answersEl.innerHTML = '';
+
+            connect(nickname);
+        }
+
+
+
+        async function connect(nickname) {
+            stompClient = new window.StompJs.Client({
+                brokerURL: 'ws://localhost:8080/ws',
+            });
+
+            stompClient.onConnect = (frame) => {
+                console.log('Подключено к WebSocket как:', nickname);
+                stompClient.publish({
+                    destination: '/app/register',
+                    body: JSON.stringify({ nickname: nickname })
+                });
+                console.log("Успешно подключено к WebSocket!");
+                stompClient.subscribe('/topic/game', (message) => {
+                    const data = JSON.parse(message.body);
+
+                    if (data.type === 'NEW_QUESTION') {
+                        loadQuestion(data);
+                        questionTimerEl.classList.remove('hidden');
+                        topButtonEl.classList.add('hidden');
+                    } else if (data.type === 'GAME_RESULT') {
+                        GAME_RESULT = data.scores;
+                        tryShowTop();
+                        return;
+                    } else if (data.type === 'GLOBAL_LEADERBOARD') {
+                        GLOBAL_LEADERBOARD = data.leaderboard;
+                        tryShowTop();
+                        return;
+                    }
+                });
+            };
+
+            stompClient.onStompError = (frame) => {
+                console.error('STOMP error:', frame.headers['message'], frame.body);
+            };
+
+            stompClient.activate();
+        }
 
 
 
@@ -318,7 +444,23 @@
             });*/
         }
 
-        async function renderLeaderboard(leaderboardMap) {
+        function tryShowTop() {
+            if (!Array.isArray(GAME_RESULT)) {
+                return;
+            }
+            questionTimerEl.classList.add('hidden');
+            topButtonEl.classList.remove('hidden');
+
+            if (currentTopMode === 'GAME') {
+                questionTextEl.textContent = 'Игра окончена. Топ игроков:';
+                renderLeaderboard(GAME_RESULT);
+            } else if (currentTopMode === 'GLOBAL' && Array.isArray(GLOBAL_LEADERBOARD)) {
+                questionTextEl.textContent = 'Глобальный топ:';
+                renderLeaderboard(GLOBAL_LEADERBOARD);
+            }
+        }
+
+        async function renderLeaderboard(leaderboard) {
             if (timerIntervalId) {
                 clearInterval(timerIntervalId);
                 timerIntervalId = null;
@@ -327,18 +469,11 @@
             questionIndexEl.textContent = 'Результаты игры';
             questionTimerEl.textContent = '';
 
-            if (!leaderboardMap || typeof leaderboardMap !== 'object') {
+            if (!Array.isArray(leaderboard)) {
                 questionTextEl.textContent = 'Игра окончена. Нет результатов.';
                 answersEl.innerHTML = '';
                 return;
             }
-
-            const leaderboard = Object.entries(leaderboardMap)
-                .map(([name, score]) => ({
-                    name,
-                    score: Number(score) || 0
-                }))
-                .sort((a, b) => b.score - a.score);
 
             if (leaderboard.length === 0) {
                 questionTextEl.textContent = 'Игра окончена. Нет результатов.';
@@ -346,74 +481,43 @@
                 return;
             }
 
-            questionTextEl.textContent = 'Игра окончена. Топ игроков:';
-
             const table = document.createElement('div');
             table.className = 'w-full flex flex-col gap-2';
 
-            leaderboard
-                .sort((a, b) => b.score - a.score)
-                .forEach((player, index) => {
-                    const row = document.createElement('div');
-                    row.className =
-                        'flex items-center justify-between px-4 py-2 rounded-xl ' +
-                        (index === 0
-                            ? 'bg-yellow-100 dark:bg-yellow-900/40'
-                            : 'bg-gray-100 dark:bg-gray-800');
+            leaderboard.forEach((player, index) => {
+                const row = document.createElement('div');
+                row.className =
+                    'flex items-center justify-between px-4 py-2 rounded-xl ' +
+                    (index === 0
+                        ? 'bg-yellow-100 dark:bg-yellow-900/40'
+                        : 'bg-gray-100 dark:bg-gray-800');
 
-                    const left = document.createElement('div');
-                    left.className = 'flex items-center gap-3';
+                const left = document.createElement('div');
+                left.className = 'flex items-center gap-3';
 
-                    const place = document.createElement('span');
-                    place.className = 'w-6 text-center font-semibold';
-                    place.textContent = `${index + 1}.`;
+                const place = document.createElement('span');
+                place.className = 'w-6 text-center font-semibold';
+                place.textContent = `${index + 1}.`;
 
-                    const name = document.createElement('span');
-                    name.className = 'font-medium';
-                    name.textContent = player.name ?? 'Без имени';
+                const name = document.createElement('span');
+                name.className = 'font-medium';
+                name.textContent = player.nickname ?? 'Без имени';
 
-                    left.appendChild(place);
-                    left.appendChild(name);
+                left.appendChild(place);
+                left.appendChild(name);
 
-                    const score = document.createElement('span');
-                    score.className = 'font-semibold';
-                    score.textContent = `${player.score} очков`;
+                const score = document.createElement('span');
+                score.className = 'font-semibold';
+                score.textContent = `${player.score || player.globalScore} очков`;
 
-                    row.appendChild(left);
-                    row.appendChild(score);
-                    table.appendChild(row);
-                });
+                row.appendChild(left);
+                row.appendChild(score);
+                table.appendChild(row);
+            });
 
             answersEl.innerHTML = '';
             answersEl.appendChild(table);
         }
-
-        async function connect() {
-            stompClient = new window.StompJs.Client({
-                brokerURL: 'ws://localhost:8080/ws',
-            });
-
-            stompClient.onConnect = (frame) => {
-                console.log("Успешно подключено к WebSocket!");
-                stompClient.subscribe('/topic/game', (message) => {
-                    const data = JSON.parse(message.body);
-
-                    if (data.type === 'NEW_QUESTION') {
-                        loadQuestion(data);
-                    } else if (data.type === "GAME_OVER") {
-                        renderLeaderboard(data.score);
-                        return;
-                    }
-                });
-            };
-
-            stompClient.onStompError = (frame) => {
-                console.error('STOMP error:', frame.headers['message'], frame.body);
-            };
-
-            stompClient.activate();
-        }
-
     </script>
 </body>
 
