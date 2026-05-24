@@ -43,6 +43,16 @@
     }
 }
 
+canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+  }
+  body > *:not(canvas) {
+    position: relative;
+    z-index: 10;
+  }
+
 .white-1e1d7 .notation-322f9 {
     color: #475569 !important;
     font-weight: bold !important;

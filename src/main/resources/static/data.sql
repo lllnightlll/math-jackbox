@@ -19,3 +19,4 @@ INSERT INTO question_option (question_id, option_text) VALUES
     (@q2, '4'),
     (@q2, '5'),
     (@q2, '6');
+    
