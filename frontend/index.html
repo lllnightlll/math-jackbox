@@ -43,15 +43,6 @@
         }
     </style>
 
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #000;
-            font-family: 'Courier New', sans-serif;
-        }
-    </style>
-
     <script type="importmap">
      {
          "imports": {
@@ -68,8 +59,7 @@
     <nav class="relative z-50 bg-white dark:bg-gray-800 shadow-md py-4 transition-colors duration-300">
         <div class="max-w-7xl mx-auto w-full px-4 lg:px-8 flex justify-between items-center">
             <div class="flex items-center gap-4">
-
-                <button onclick="copyTag()"
+                <button id="copyTag"
                     class="text-left group p-2 -ml-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors duration-200 select-none cursor-pointer"
                     title="Нажмите, чтобы скопировать тег">
                     <h1
@@ -184,6 +174,8 @@
     <script type="module">
         const htmlEl = document.documentElement;
         const themeBtn = document.getElementById('theme-toggle');
+        const copyTagBtn = document.getElementById('copyTag');
+        const topButtonEl = document.getElementById('top-button');
 
 
 
@@ -250,7 +242,10 @@
         const questionIndexEl = document.getElementById('question-index');
         const questionTimerEl = document.getElementById('question-timer');
         const answersEl = document.getElementById('answers');
-        const topButtonEl = document.getElementById('top-button');
+
+
+
+
 
         registerBtnEl.addEventListener('click', register);
 
@@ -267,15 +262,13 @@
             tryShowTop();
         });
 
-
-
-        async function copyTag() {
+        copyTagBtn.addEventListener('click', () => {
             const tagElement = document.getElementById('hashtag-text');
             const originalText = '#MathJackbox';
 
             try {
                 if (navigator.clipboard && window.isSecureContext) {
-                    await navigator.clipboard.writeText(originalText);
+                    navigator.clipboard.writeText(originalText);
                 } else {
                     const textArea = document.createElement("textarea");
                     textArea.value = originalText;
@@ -299,7 +292,11 @@
             } catch (err) {
                 console.error('Ошибка копирования:', err);
             }
-        }
+        });
+
+        
+
+
 
         async function fetchGameData() {
             try {
