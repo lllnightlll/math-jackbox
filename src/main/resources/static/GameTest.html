@@ -99,7 +99,6 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
 
-        /* Стили для логов и топа внизу */
         .bottom-container {
             display: flex;
             justify-content: space-between;
@@ -152,7 +151,7 @@
 </head>
 <body>
 <div id="reg-area"
-     style="text-align: center; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto;">
+     style="text-align: center; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); max-width: 400px; margin: 0 auto;">
     <h2>Quiz Викторина</h2>
     <p style="color: gray; font-size: 14px;">Если ты уже играл, мы узнаем тебя!</p>
     <input type="text" id="nickname" placeholder="Введи никнейм"
@@ -196,7 +195,6 @@
     </div>
 </div>
 
-<!-- Здесь теперь только результаты ТЕКУЩЕГО матча -->
 <div class="result-container" id="results-area" style="display:none;">
     <div class="result-box">
         <h3 style="color: #007bff; text-align: center;">🏁 Результаты матча:</h3>
@@ -205,7 +203,6 @@
     </div>
 </div>
 
-<!-- Нижний блок: Логи (слева) и Глобальный ТОП (справа) -->
 <div class="bottom-container" id="bottom-area" style="display:none;">
     <div id="log-container">
         <h3>Системные логи:</h3>
@@ -253,18 +250,29 @@
         stompClient = new window.StompJs.Client({brokerURL: 'ws://localhost:8080/ws'});
 
         stompClient.onConnect = (frame) => {
-            log("Успешное подключение к WebSocket.");
-            document.getElementById("reg-area").style.display = "none";
-            document.getElementById("lobby").style.display = "block";
-            document.getElementById("bottom-area").style.display = "flex"; // Показываем логи и ТОП
+            log("Успешное подключение к WebSocket. Авторизация...");
 
             stompClient.subscribe('/user/queue/reply', (message) => {
                 const data = JSON.parse(message.body);
+
+                if (data.type === 'ERROR') {
+                    alert(data.message);
+                    stompClient.deactivate();
+                    log("Ошибка авторизации: " + data.message);
+                    return;
+                }
+
                 if (data.type === 'REGISTER_SUCCESS') {
                     localStorage.setItem('quiz_token', data.secretToken);
                     localStorage.setItem('quiz_nickname', data.nickname);
                     log("Авторизация успешна. Токен сохранен.");
+                } else if (data.type === 'GUEST_SUCCESS') {
+                    log("Вошел как Гость: " + data.nickname);
                 }
+
+                document.getElementById("reg-area").style.display = "none";
+                document.getElementById("lobby").style.display = "block";
+                document.getElementById("bottom-area").style.display = "flex";
             });
 
             stompClient.subscribe('/topic/game', (message) => {
