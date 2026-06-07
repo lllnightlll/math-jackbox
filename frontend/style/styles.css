@@ -96,3 +96,7 @@ body>*:not(canvas) {
 .dark .custom-scroll::-webkit-scrollbar-thumb {
     background: #475569;
 }
+
+#question-text {
+    white-space: pre-line; 
+}

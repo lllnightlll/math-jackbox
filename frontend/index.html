@@ -51,6 +51,8 @@
          }
      }
  </script>
+    <!--<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+    <script>eruda.init();</script>-->
 </head>
 
 <body
@@ -294,7 +296,7 @@
             }
         });
 
-        
+
 
 
 
@@ -446,7 +448,7 @@
                 particles.rotation.y += 0.05;
             } else if (currentTech === 'shrine') {
                 particles.rotation.set(0, 0, 0);
-            } else {
+            } else if (currentTech === '') {
                 particles.rotation.y += 0.005;
             }
 
@@ -507,7 +509,7 @@
             updateState('neutral');
             setTimeout(() => { currentTech = 'off'; updateState(currentTech); }, 300);
             stompClient = new window.StompJs.Client({
-                brokerURL: 'ws://localhost:8080/ws',
+                brokerURL: 'ws://91.144.171.134:8080/ws',
             });
 
             stompClient.onConnect = (frame) => {
