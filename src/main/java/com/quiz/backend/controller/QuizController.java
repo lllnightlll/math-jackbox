@@ -23,6 +23,11 @@ public class QuizController {
 
     @MessageMapping("/register")
     public void registerPlayer(RegisterDTO registerDTO, @Header("simpSessionId") String sessionId) {
-        quizService.registerPlayer(sessionId, registerDTO.getNickname());
+        quizService.registerPlayer(sessionId, registerDTO);
+    }
+    // Гость входит в игру на /app/join-guest
+    @MessageMapping("/join-guest")
+    public void joinAsGuest(GuestJoinDTO guestDTO, @Header("simpSessionId") String sessionId) {
+        quizService.joinAsGuest(sessionId, guestDTO.getNickname());
     }
 }
