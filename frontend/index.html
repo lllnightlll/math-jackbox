@@ -100,6 +100,19 @@
         </div>
     </div>
 
+    <div id="ready-overlay" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-40 hidden">
+        <div class="bg-gray-900 text-white rounded-2xl px-6 py-5 max-w-sm w-full text-center shadow-2xl">
+            <h2 class="text-lg font-semibold mb-3">Ожидание других игроков</h2>
+            <p class="text-sm text-gray-300 mb-5">
+                Когда будешь готов к старту, нажми кнопку ниже.
+            </p>
+            <button id="ready-btn" type="button" class="w-full px-4 py-2.5 rounded-lg bg-emerald-600 text-sm font-medium
+                   hover:bg-emerald-700 active:bg-emerald-800 transition">
+                Я готов 👉👈
+            </button>
+        </div>
+    </div>
+
 
     <main
         class="flex-grow max-w-7xl mx-auto w-full p-4 lg:p-8 flex flex-col lg:flex-row items-start gap-6 relative z-10">
@@ -121,6 +134,10 @@
                     <button id="register-btn" type="button" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium
                          hover:bg-blue-700 active:bg-blue-800 transition">
                         Войти в игру
+                    </button>
+                    <button id="guest-btn" type="button" class="ml-2 px-4 py-2 rounded-lg bg-gray-600 text-white text-sm font-medium 
+                         hover:bg-gray-700 active:bg-gray-800 transition">
+                        Гость
                     </button>
                 </div>
             </div>
@@ -223,6 +240,7 @@
         let shakeIntensity = 0;
         let update = false;
         let stompClient = null;
+        let isReady = false;
         let currentQuestion = null;
         let currentQuestionId = null;
         let isAnswerSent = false;
@@ -239,6 +257,9 @@
         const questionContainerEl = document.getElementById('question-container');
         const nicknameInputEl = document.getElementById('nickname');
         const registerBtnEl = document.getElementById('register-btn');
+        const registerBtnE2 = document.getElementById('guest-btn');
+        const readyOverlayEl = document.getElementById('ready-overlay');
+        const readyBtnEl = document.getElementById('ready-btn');
 
         const questionTextEl = document.getElementById('question-text');
         const questionIndexEl = document.getElementById('question-index');
@@ -249,7 +270,9 @@
 
 
 
-        registerBtnEl.addEventListener('click', register);
+        registerBtnEl.addEventListener('click', reg_nickname);
+        registerBtnE2.addEventListener('click', reg_guest);
+        readyBtnEl.addEventListener('click', sendReady);
 
         themeBtn.addEventListener('click', () => {
             htmlEl.classList.toggle('dark');
@@ -481,16 +504,23 @@
         }
         display();
 
-        async function register() {
 
+
+        async function reg_nickname() {
             const nickname = nicknameInputEl.value.trim();
-
             if (!nickname) {
                 alert('Пожалуйста, введи никнейм!');
                 nicknameInputEl.focus();
                 return;
             }
+            register(nickname, true)
+        }
 
+        async function reg_guest() {
+            register("гость", false);
+        }
+
+        async function register(nickname, type) {
             window.playerNickname = nickname;
 
             registerScreenEl.classList.add('hidden');
@@ -500,42 +530,33 @@
             questionTimerEl.textContent = '';
             answersEl.innerHTML = '';
 
-            connect(nickname);
+            connect(nickname, type);
         }
 
 
 
-        async function connect(nickname) {
-            updateState('neutral');
-            setTimeout(() => { currentTech = 'off'; updateState(currentTech); }, 300);
+        async function connect(nickname, type) {
             stompClient = new window.StompJs.Client({
                 brokerURL: 'ws://91.144.171.134:8080/ws',
             });
 
             stompClient.onConnect = (frame) => {
                 console.log('Подключено к WebSocket как:', nickname);
-                stompClient.publish({
-                    destination: '/app/register',
-                    body: JSON.stringify({ nickname: nickname })
-                });
+                if (type) {
+                    stompClient.publish({
+                        destination: '/app/register',
+                        body: JSON.stringify({ nickname: nickname })
+                    });
+                } else {
+                    stompClient.publish({
+                        destination: '/app/join-guest',
+                        body: JSON.stringify({ nickname })
+                    })
+                }
                 console.log("Успешно подключено к WebSocket!");
-                stompClient.subscribe('/topic/game', (message) => {
-                    const data = JSON.parse(message.body);
-
-                    if (data.type === 'NEW_QUESTION') {
-                        loadQuestion(data);
-                        questionTimerEl.classList.remove('hidden');
-                        topButtonEl.classList.add('hidden');
-                    } else if (data.type === 'GAME_RESULT') {
-                        GAME_RESULT = data.scores;
-                        tryShowTop();
-                        return;
-                    } else if (data.type === 'GLOBAL_LEADERBOARD') {
-                        GLOBAL_LEADERBOARD = data.leaderboard;
-                        tryShowTop();
-                        return;
-                    }
-                });
+                updateState('neutral');
+                setTimeout(() => { currentTech = 'off'; updateState(currentTech); }, 300);
+                setTimeout(() => { showReadyOverlay(); }, 700);
             };
 
             stompClient.onStompError = (frame) => {
@@ -545,7 +566,60 @@
             stompClient.activate();
         }
 
+        async function subscribe() {
+            stompClient.subscribe('/topic/game', (message) => {
+                const data = JSON.parse(message.body);
 
+                if (data.type === 'NEW_QUESTION') {
+                    loadQuestion(data); hideReady();
+                    questionTimerEl.classList.remove('hidden');
+                    topButtonEl.classList.add('hidden');
+                } else if (data.type === 'GAME_RESULT') {
+                    GAME_RESULT = data.scores;
+                    tryShowTop();
+                    return;
+                } else if (data.type === 'GLOBAL_LEADERBOARD') {
+                    GLOBAL_LEADERBOARD = data.leaderboard;
+                    tryShowTop();
+                    return;
+                }
+            });
+        }
+
+
+
+        function showReadyOverlay() {
+            isReady = false;
+            readyBtnEl.textContent = 'Я готов';
+            readyBtnEl.disabled = false;
+            readyBtnEl.classList.remove('bg-gray-500');
+            readyBtnEl.classList.add('bg-emerald-600');
+            readyOverlayEl.classList.remove('hidden');
+        }
+
+        function sendReady() {
+            if (isReady) return;
+            isReady = true
+            readyBtnEl.textContent = 'Ожидаем других...';
+            readyBtnEl.disabled = true;
+            readyBtnEl.classList.remove('bg-emerald-600');
+            readyBtnEl.classList.add('bg-gray-500');
+
+            if (stompClient && stompClient.connected) {
+                stompClient.publish({
+                    destination: '/app/ready'
+                });
+
+                hideReady();
+                subscribe();
+            } else {
+                console.warn('stompClient не подключен, не могу отправить /app/ready');
+            }
+        }
+
+        function hideReady() {
+            readyOverlayEl.classList.add('hidden');
+        }
 
         async function loadQuestion(data) {
             try {
@@ -573,7 +647,7 @@
                 questionIndexEl.textContent = `Вопрос ${questionIndex}`;
                 questionTextEl.textContent = data.text;
                 timeLeft = data.secondsLeft ?? 0;
-                timeLeft -= 5;
+                timeLeft -= 1;
                 questionTimerEl.textContent = `00:${String(timeLeft).padStart(2, '0')}`;
 
                 // 4 кнопки

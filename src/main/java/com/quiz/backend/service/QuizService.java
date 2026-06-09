@@ -1,19 +1,30 @@
 package com.quiz.backend.service;
 
+import com.quiz.backend.dto.ErrorDTO;
 import com.quiz.backend.dto.GameResultDTO;
 import com.quiz.backend.dto.GlobalLeaderboardDTO;
+import com.quiz.backend.dto.LobbyStateDTO;
 import com.quiz.backend.dto.LobbyUpdateDTO;
 import com.quiz.backend.dto.QuestionDTO;
+import com.quiz.backend.dto.RegisterDTO;
+import com.quiz.backend.dto.RegisterResponseDTO;
 import com.quiz.backend.model.Player;
 import com.quiz.backend.model.Question;
 import com.quiz.backend.repository.PlayerRepository;
 import com.quiz.backend.repository.QuestionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,162 +38,297 @@ public class QuizService {
     private final PlayerRepository playerRepository;
     private final QuestionRepository questionRepository;
 
-    // Храним баллы игроков: Ключ - sessionId, Значение - баллы
     private final Map<String, Integer> playerScores = new ConcurrentHashMap<>();
-    // Храним уникальные sessionId ответивших игроков
+    private final Map<String, String> sessionNicknames = new ConcurrentHashMap<>();
+    private final Set<String> registeredSessions = ConcurrentHashMap.newKeySet();
     private final Set<String> answeredPlayers = ConcurrentHashMap.newKeySet();
+    private final Set<String> readyPlayers = ConcurrentHashMap.newKeySet();
 
+    private boolean isPlaying = false;
+    private int lobbyTimer = 15;
+    private int questionTimer = 0;
+    private int targetQuestionCount = 5;
+
+    private List<Question> currentMatchQuestions = new ArrayList<>();
     private int currentQuestionIndex = 0;
     private Question currentQuestionObject;
 
-    @Scheduled(fixedRate = 10000)
-    @Transactional(readOnly = true)
-    public void nextQuestion() {
-        List<Question> questions = questionRepository.findAllWithOptions();
+    @Transactional
+    public void registerPlayer(String sessionId, RegisterDTO dto) {
+        String requestedNickname = dto.getNickname() != null ? dto.getNickname().trim() : "";
 
-        if (questions.isEmpty()) {
-            log.warn("В базе данных нет вопросов!");
+        if (requestedNickname.isEmpty()) {
+            sendError(sessionId, "Никнейм не может быть пустым.");
             return;
         }
 
-        // --- БЛОК ОКОНЧАНИЯ ИГРЫ ---
-        if (currentQuestionIndex >= questions.size()) {
-            log.info("Игра окончена! Записываем результаты в БД...");
+        Player player = null;
+        boolean isNewUser = false;
 
-            // 1. Обновляем глобальный счет каждого игрока в БД
-            playerScores.forEach((sessionId, matchScore) -> {
-                playerRepository.findBySessionId(sessionId).ifPresent(player -> {
-                    // Прибавляем очки за текущий матч к глобальным очкам в БД
-                    player.setScore(player.getScore() + matchScore);
-                    playerRepository.save(player); // Сохраняем в БД
-                });
-            });
-
-            // 2. Формируем результаты текущего матча (для отправки игрокам)
-            List<GameResultDTO.PlayerScore> matchResult =
-                    playerScores.entrySet()
-                            .stream()
-                    .map(entry -> {
-                        String nickname = playerRepository.findBySessionId(entry.getKey())
-                                .map(Player::getNickname)
-                                .orElse("UNKNOWN");
-                        return new GameResultDTO.PlayerScore(nickname, entry.getValue());
-                    })
-                    .sorted((a, b) -> Integer.compare(b.getScore(), a.getScore()))
-                    .toList();
-
-            // Отправляем результаты матча
-            messagingTemplate.convertAndSend("/topic/game", new GameResultDTO("GAME_RESULT", matchResult));
-
-            // 3. Достаем ТОП-10 игроков за всё время из БД и отправляем Глобальный Рейтинг
-            List<GlobalLeaderboardDTO.PlayerRow> globalTop = playerRepository.findTop10ByOrderByScoreDesc()
-                    .stream()
-                    .map(p -> new GlobalLeaderboardDTO.PlayerRow(p.getNickname(), p.getScore()))
-                    .toList();
-
-            // Отправляем глобальный топ
-            messagingTemplate.convertAndSend("/topic/game", new GlobalLeaderboardDTO("GLOBAL_LEADERBOARD", globalTop));
-
-            // Сбрасываем игру
-            try {
-                Thread.sleep(5000); // пауза в 2 секунды
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+        // 1. Пробуем найти игрока по сохраненному токену
+        if (dto.getSecretToken() != null && !dto.getSecretToken().isEmpty()) {
+            Optional<Player> existingPlayer = playerRepository.findBySecretToken(dto.getSecretToken());
+            if (existingPlayer.isPresent()) {
+                player = existingPlayer.get();
+                // Если зашел по токену, разрешаем вход, даже если ник совпадает с запрошенным (это его собственный ник)
             }
-            currentQuestionIndex = 0;
-            playerScores.clear();
+        }
+
+        // 2. Если токена нет или он недействителен — это новый игрок
+        if (player == null) {
+            // Проверка 1: Занят ли никнейм в базе данных (уже зарегистрирован кем-то другим)?
+            if (playerRepository.findByNickname(requestedNickname).isPresent()) {
+                sendError(sessionId, "Этот никнейм уже занят другим игроком. Выбери другой.");
+                return;
+            }
+
+            // Проверка 2: Сидит ли прямо сейчас в лобби гость с таким же ником?
+            if (sessionNicknames.containsValue(requestedNickname)) {
+                sendError(sessionId, "Этот никнейм прямо сейчас используется в игре. Выбери другой.");
+                return;
+            }
+
+            player = new Player();
+            player.setNickname(requestedNickname);
+            player.setScore(0);
+            player.setSecretToken(UUID.randomUUID().toString());
+            isNewUser = true;
+            log.info("Создан новый игрок '{}'.", requestedNickname);
+        }
+
+        // Применяем настройки для сессии
+        player.setSessionId(sessionId);
+        playerRepository.save(player);
+
+        playerScores.put(sessionId, 0);
+        sessionNicknames.put(sessionId, player.getNickname());
+        registeredSessions.add(sessionId);
+
+        // Отправляем успешный ответ и токен (если новый)
+        messagingTemplate.convertAndSendToUser(
+                sessionId,
+                "/queue/reply",
+                new RegisterResponseDTO("REGISTER_SUCCESS", player.getSecretToken(), player.getNickname()),
+                createHeaders(sessionId)
+        );
+
+        broadcastLobbyState();
+    }
+
+    public void joinAsGuest(String sessionId, String nickname) {
+        String guestName = (nickname == null || nickname.trim().isEmpty())
+                ? "Guest_" + sessionId.substring(0, 4)
+                : nickname.trim();
+
+        // Проверка: Занят ли никнейм в базе данных или сейчас в лобби?
+        if (playerRepository.findByNickname(guestName).isPresent() || sessionNicknames.containsValue(guestName)) {
+            sendError(sessionId, "Никнейм '" + guestName + "' занят. Выбери другой или зайди без имени (выдастся случайное).");
             return;
         }
 
-        answeredPlayers.clear();
-        log.info("Новый раунд: сброс ответивших игроков");
+        playerScores.put(sessionId, 0);
+        sessionNicknames.put(sessionId, guestName);
 
-        currentQuestionObject = questions.get(currentQuestionIndex);
+        log.info("Вошел гость: {}", guestName);
+
+        // Отправляем гостю сообщение об успехе (чтобы фронтенд пустил его в лобби)
+        messagingTemplate.convertAndSendToUser(
+                sessionId,
+                "/queue/reply",
+                new RegisterResponseDTO("GUEST_SUCCESS", null, guestName),
+                createHeaders(sessionId)
+        );
+
+        broadcastLobbyState();
+    }
+
+    // Вспомогательный метод для отправки ошибок конкретному пользователю
+    private void sendError(String sessionId, String message) {
+        log.warn("Ошибка входа (Сессия {}): {}", sessionId, message);
+        messagingTemplate.convertAndSendToUser(
+                sessionId,
+                "/queue/reply",
+                new ErrorDTO("ERROR", message),
+                createHeaders(sessionId)
+        );
+    }
+
+    public void setPlayerReady(String sessionId) {
+        if (!isPlaying && sessionNicknames.containsKey(sessionId)) {
+            readyPlayers.add(sessionId);
+            broadcastLobbyState();
+        }
+    }
+
+    public void changeQuestionCount(int count) {
+        if (!isPlaying) {
+            targetQuestionCount = count;
+            broadcastLobbyState();
+        }
+    }
+
+    private MessageHeaders createHeaders(String sessionId) {
+        SimpMessageHeaderAccessor headerAccessor = SimpMessageHeaderAccessor.create(SimpMessageType.MESSAGE);
+        headerAccessor.setSessionId(sessionId);
+        headerAccessor.setLeaveMutable(true);
+        return headerAccessor.getMessageHeaders();
+    }
+
+    // Игровой цикл - работает каждую 1 секунду
+    @Scheduled(fixedRate = 1000)
+    public void gameTick() {
+        if (!isPlaying) {
+            handleLobbyTick();
+        } else {
+            handlePlayingTick();
+        }
+    }
+
+    private void handleLobbyTick() {
+        if (sessionNicknames.isEmpty()) {
+            lobbyTimer = 15;
+            readyPlayers.clear();
+            return;
+        }
+
+        boolean allReady = !readyPlayers.isEmpty() && readyPlayers.size() == sessionNicknames.size();
+
+        if (lobbyTimer <= 0 || allReady) {
+            startGame();
+        } else {
+            lobbyTimer--;
+            broadcastLobbyState();
+        }
+    }
+
+    @Transactional(readOnly = true)
+    protected void startGame() {
+        List<Question> allQuestions = questionRepository.findAllWithOptions();
+        if (allQuestions.isEmpty()) return;
+
+        Collections.shuffle(allQuestions);
+        int limit = Math.min(targetQuestionCount, allQuestions.size());
+        currentMatchQuestions = new ArrayList<>(allQuestions.subList(0, limit));
+
+        isPlaying = true;
+        currentQuestionIndex = 0;
+        questionTimer = 0; // Форсируем отправку первого вопроса
+    }
+
+    @Transactional
+    protected void handlePlayingTick() {
+        boolean allAnswered = !answeredPlayers.isEmpty() && answeredPlayers.size() == sessionNicknames.size();
+
+        if (questionTimer <= 0 || allAnswered) {
+            if (currentQuestionIndex >= currentMatchQuestions.size()) {
+                finishGame();
+            } else {
+                sendNextQuestion();
+            }
+        } else {
+            questionTimer--;
+        }
+    }
+
+    private void sendNextQuestion() {
+        answeredPlayers.clear();
+        currentQuestionObject = currentMatchQuestions.get(currentQuestionIndex);
+        questionTimer = 10;
 
         QuestionDTO dto = new QuestionDTO();
         dto.setText(currentQuestionObject.getText());
         dto.setOptions(new ArrayList<>(currentQuestionObject.getOptions()));
-        dto.setSecondsLeft(10);
-
-        log.info("--- НОВЫЙ РАУНД ---");
-        log.info("Вопрос: {}", dto.getText());
+        dto.setSecondsLeft(questionTimer);
 
         messagingTemplate.convertAndSend("/topic/game", dto);
         currentQuestionIndex++;
     }
 
-    public void processAnswer(String sessionId, int answerIndex) {
-        if (currentQuestionObject != null && (answerIndex < 0 || answerIndex >= currentQuestionObject.getOptions().size())) {
-            log.warn("Игрок {} отправил невалидный индекс: {}", sessionId, answerIndex);
-            return;
-        }
+    private void finishGame() {
+        playerScores.forEach((sessionId, matchScore) -> {
+            if (registeredSessions.contains(sessionId)) {
+                playerRepository.findBySessionId(sessionId).ifPresent(player -> {
+                    player.setScore(player.getScore() + matchScore);
+                    playerRepository.save(player);
+                });
+            }
+        });
 
-        if (!answeredPlayers.add(sessionId)) {
-            log.info("Игрок {} уже ответил!", sessionId);
-            return;
-        }
-
-        if (currentQuestionObject == null) {
-            answeredPlayers.remove(sessionId);
-            return;
-        }
-
-        // Проверяем, зарегистрирован ли игрок
-        Optional<Player> playerOpt = playerRepository.findBySessionId(sessionId);
-        if (playerOpt.isEmpty()) {
-            log.warn("Попытка ответить без регистрации: {}", sessionId);
-            answeredPlayers.remove(sessionId);
-            return;
-        }
-
-        // Проверяем ответ
-        boolean isCorrect = (answerIndex == currentQuestionObject.getCorrectOptionIndex());
-
-        if (isCorrect) {
-            // ТЕПЕРЬ МЫ МЕНЯЕМ ОЧКИ ТОЛЬКО В ОПЕРАТИВКЕ (playerScores)
-            // Базу данных во время раунда мы вообще не трогаем!
-            int newScore = playerScores.getOrDefault(sessionId, 0) + 10;
-            playerScores.put(sessionId, newScore);
-            log.info("Игрок {} ответил ПРАВИЛЬНО! Очков в матче: {}", sessionId, newScore);
-        } else {
-            log.info("Игрок {} ошибся.", sessionId);
-        }
-    }
-
-    @Transactional
-    public void registerPlayer(String sessionId, String nickname) {
-        // Ищем игрока в БД по НИКНЕЙМУ, а не по сессии!
-        Player player = playerRepository.findByNickname(nickname) // Нужен метод в репозитории
-                .orElse(new Player());
-
-        // Обновляем сессию на актуальную (новую)
-        player.setSessionId(sessionId);
-
-        // Если это новый игрок, заполняем поля
-        if (player.getId() == null) {
-            player.setNickname(nickname);
-            player.setScore(0);
-        }
-
-        playerRepository.save(player);
-
-        // Инициализируем/обновляем его очки в мапе текущего матча
-        playerScores.put(sessionId, 0);
-
-        log.info("Игрок '{}' вошел в игру. Глобальный счет в БД: {}. Новая сессия: {}",
-                nickname, player.getScore(), sessionId);
-
-        broadcastLobbyUpdate();
-    }
-
-    private void broadcastLobbyUpdate() {
-        // Достаем из БД имена всех активных игроков (у которых score в памяти инициализирован)
-        List<String> activeNicknames = playerScores.keySet().stream()
-                .map(sessionId -> playerRepository.findBySessionId(sessionId)
-                        .map(Player::getNickname)
-                        .orElse("Anonymous"))
+        List<GameResultDTO.PlayerScore> matchResult = playerScores.entrySet().stream()
+                .map(entry -> new GameResultDTO.PlayerScore(
+                        sessionNicknames.getOrDefault(entry.getKey(), "Guest"), entry.getValue()))
+                .sorted((a, b) -> Integer.compare(b.getScore(), a.getScore()))
                 .toList();
 
-        messagingTemplate.convertAndSend("/topic/game", new LobbyUpdateDTO(activeNicknames));
+        messagingTemplate.convertAndSend("/topic/game", new GameResultDTO("GAME_RESULT", matchResult));
+
+        List<GlobalLeaderboardDTO.PlayerRow> globalTop = playerRepository.findTop10ByOrderByScoreDesc().stream()
+                .map(p -> new GlobalLeaderboardDTO.PlayerRow(p.getNickname(), p.getScore()))
+                .toList();
+
+        messagingTemplate.convertAndSend("/topic/game", new GlobalLeaderboardDTO("GLOBAL_LEADERBOARD", globalTop));
+
+        resetLobby();
+    }
+
+    private void resetLobby() {
+        isPlaying = false;
+        lobbyTimer = 15;
+        readyPlayers.clear();
+        answeredPlayers.clear();
+        currentMatchQuestions.clear();
+
+        // Сбрасываем очки матча, но оставляем людей в лобби
+        playerScores.keySet().forEach(k -> playerScores.put(k, 0));
+        broadcastLobbyState();
+    }
+
+    public void processAnswer(String sessionId, int answerIndex) {
+        if (!isPlaying || currentQuestionObject == null) return;
+        if (answerIndex < 0 || answerIndex >= currentQuestionObject.getOptions().size()) return;
+        if (!sessionNicknames.containsKey(sessionId)) return;
+        if (!answeredPlayers.add(sessionId)) return;
+
+        if (answerIndex == currentQuestionObject.getCorrectOptionIndex()) {
+            playerScores.put(sessionId, playerScores.getOrDefault(sessionId, 0) + 10);
+        }
+    }
+
+    private void broadcastLobbyState() {
+        // Отправляем текущее состояние лобби
+        List<String> activeNicknames = new ArrayList<>(sessionNicknames.values());
+        LobbyStateDTO state = new LobbyStateDTO(
+                "LOBBY_STATE", activeNicknames, readyPlayers.size(), targetQuestionCount, lobbyTimer
+        );
+        messagingTemplate.convertAndSend("/topic/game", state);
+
+
+        List<GlobalLeaderboardDTO.PlayerRow> globalTop = playerRepository.findTop10ByOrderByScoreDesc().stream()
+                .map(p -> new GlobalLeaderboardDTO.PlayerRow(p.getNickname(), p.getScore()))
+                .toList();
+        messagingTemplate.convertAndSend("/topic/game", new GlobalLeaderboardDTO("GLOBAL_LEADERBOARD", globalTop));
+    }
+
+    @EventListener
+    public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
+        StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
+        String sessionId = headerAccessor.getSessionId();
+
+        if (sessionNicknames.containsKey(sessionId)) {
+            String nickname = sessionNicknames.get(sessionId);
+            log.info("Игрок отключился: {} (Сессия: {})", nickname, sessionId);
+
+            // Удаляем игрока изо всех оперативных списков
+            sessionNicknames.remove(sessionId);
+            registeredSessions.remove(sessionId);
+            readyPlayers.remove(sessionId);
+            playerScores.remove(sessionId);
+            answeredPlayers.remove(sessionId);
+
+            // Если мы сейчас в лобби, обновляем список для оставшихся
+            if (!isPlaying) {
+                broadcastLobbyState();
+            }
+        }
     }
 }
