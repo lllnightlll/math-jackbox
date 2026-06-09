@@ -1,7 +1,9 @@
 package com.quiz.backend.controller;
 
 import com.quiz.backend.dto.AnswerDTO;
+import com.quiz.backend.dto.GuestJoinDTO;
 import com.quiz.backend.dto.RegisterDTO;
+import com.quiz.backend.dto.SettingsDTO;
 import com.quiz.backend.service.QuizService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.Header;
@@ -23,6 +25,22 @@ public class QuizController {
 
     @MessageMapping("/register")
     public void registerPlayer(RegisterDTO registerDTO, @Header("simpSessionId") String sessionId) {
-        quizService.registerPlayer(sessionId, registerDTO.getNickname());
+        quizService.registerPlayer(sessionId, registerDTO);
+    }
+
+    // Гость входит в игру на /app/join-guest
+    @MessageMapping("/join-guest")
+    public void joinAsGuest(GuestJoinDTO guestDTO, @Header("simpSessionId") String sessionId) {
+        quizService.joinAsGuest(sessionId, guestDTO.getNickname());
+    }
+
+    @MessageMapping("/ready")
+    public void setReady(@Header("simpSessionId") String sessionId) {
+        quizService.setPlayerReady(sessionId);
+    }
+
+    @MessageMapping("/settings")
+    public void changeSettings(SettingsDTO settings) {
+        quizService.changeQuestionCount(settings.getQuestionCount());
     }
 }

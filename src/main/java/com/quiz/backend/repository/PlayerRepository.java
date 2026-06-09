@@ -14,5 +14,7 @@ public interface PlayerRepository extends JpaRepository<Player, Long> {
     List<Player> findTop10ByOrderByScoreDesc();
 
 
+    Optional<Player> findBySecretToken(String secretToken);
+
     Optional<Player> findByNickname(String nickname);
 }

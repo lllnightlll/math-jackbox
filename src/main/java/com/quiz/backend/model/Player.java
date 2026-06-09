@@ -12,8 +12,16 @@ public class Player {
     private Long id;
 
     @Column(unique = true, nullable = false)
+    private String secretToken;
 
-    private String sessionId; // ID сессии в вебсокете
+
+    @Column(unique = true)
+    private String sessionId;
+
+
+    @Column(nullable = false)
     private String nickname;
+
     private int score;
+
 }

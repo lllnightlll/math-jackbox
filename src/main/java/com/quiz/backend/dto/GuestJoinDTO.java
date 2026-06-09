@@ -3,7 +3,6 @@ package com.quiz.backend.dto;
 import lombok.Data;
 
 @Data
-public class RegisterDTO {
+public class GuestJoinDTO {
     private String nickname;
-    private String secretToken;
 }
