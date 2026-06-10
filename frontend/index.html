@@ -143,6 +143,9 @@
             </div>
         </div>
 
+        <div id="register-error" class="mt-2 text-sm text-red-500 hidden">
+        </div>
+
         <div id="question-container" class="w-full lg:w-2/3 mx-auto hidden">
             <div
                 class="bg-white dark:bg-gray-800 rounded-3xl shadow-md border border-gray-200 dark:border-gray-700 p-6 md:p-8">
@@ -258,6 +261,7 @@
         const nicknameInputEl = document.getElementById('nickname');
         const registerBtnEl = document.getElementById('register-btn');
         const registerBtnE2 = document.getElementById('guest-btn');
+        const errorBoxEl = document.getElementById('register-error');
         const readyOverlayEl = document.getElementById('ready-overlay');
         const readyBtnEl = document.getElementById('ready-btn');
 
@@ -517,18 +521,53 @@
         }
 
         async function reg_guest() {
-            register("гость", false);
+            register("", false);
+        }
+
+        function handleUserReply(data) {
+            if (!data || !data.type) {
+                console.warn('Неизвестный ответ от /queue/reply:', data);
+                return;
+            }
+            if (data.type === 'ERROR') {
+                showRegisterError(data.message || 'Произошла ошибка при входе');
+                questionContainerEl.classList.add('hidden');
+                registerScreenEl.classList.remove('hidden');
+                return;
+            }
+
+            if (data.type === 'REGISTER_SUCCESS' || data.type === 'GUEST_SUCCESS') {
+                if (data.secretToken) {
+                    localStorage.setItem('quiz_secret_token', data.secretToken);
+                }
+                window.playerNickname = data.nickname;
+
+                registerScreenEl.classList.add('hidden');
+                questionContainerEl.classList.remove('hidden');
+                questionTextEl.textContent = 'Загрузка вопроса...';
+                questionTimerEl.textContent = '';
+                answersEl.innerHTML = '';
+
+                return;
+            }
+
+            console.warn('Неизвестный тип ответа:', data.type, data);
+        }
+
+        function showRegisterError(message) {
+            if (!errorBoxEl) {
+                alert(message);
+                return;
+            }
+            errorBoxEl.textContent = message;
+            errorBoxEl.classList.remove('hidden');
         }
 
         async function register(nickname, type) {
-            window.playerNickname = nickname;
-
-            registerScreenEl.classList.add('hidden');
-            questionContainerEl.classList.remove('hidden');
-
-            questionTextEl.textContent = 'Загрузка вопроса...';
-            questionTimerEl.textContent = '';
-            answersEl.innerHTML = '';
+            if (errorBoxEl) {
+                errorBoxEl.textContent = '';
+                errorBoxEl.classList.add('hidden');
+            }
 
             connect(nickname, type);
         }
@@ -542,6 +581,13 @@
 
             stompClient.onConnect = (frame) => {
                 console.log('Подключено к WebSocket как:', nickname);
+
+                stompClient.subscribe('/user/queue/reply', (message) => {
+                    const payload = JSON.parse(message.body);
+                    handleUserReply(payload);
+                    console.log('MESSAGE /user/queue/reply RAW:', payload.type);
+                });
+
                 if (type) {
                     stompClient.publish({
                         destination: '/app/register',
