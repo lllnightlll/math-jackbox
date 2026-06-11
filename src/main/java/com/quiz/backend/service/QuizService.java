@@ -47,6 +47,11 @@ public class QuizService {
 
     @Transactional
     public void registerPlayer(String sessionId, RegisterDTO dto) {
+        if (isPlaying) {
+            sendError(sessionId, "Игра уже идет. Подождите окончания матча.");
+            return;
+        }
+
         String requestedNickname = dto.getNickname() != null ? dto.getNickname().trim() : "";
 
         if (requestedNickname.isEmpty()) {
@@ -55,26 +60,21 @@ public class QuizService {
         }
 
         Player player = null;
-        boolean isNewUser = false;
 
-        // 1. Пробуем найти игрока по сохраненному токену
+
         if (dto.getSecretToken() != null && !dto.getSecretToken().isEmpty()) {
             Optional<Player> existingPlayer = playerRepository.findBySecretToken(dto.getSecretToken());
             if (existingPlayer.isPresent()) {
                 player = existingPlayer.get();
-                // Если зашел по токену, разрешаем вход, даже если ник совпадает с запрошенным (это его собственный ник)
             }
         }
 
-        // 2. Если токена нет или он недействителен — это новый игрок
         if (player == null) {
-            // Проверка 1: Занят ли никнейм в базе данных (уже зарегистрирован кем-то другим)?
             if (playerRepository.findByNickname(requestedNickname).isPresent()) {
                 sendError(sessionId, "Этот никнейм уже занят другим игроком. Выбери другой.");
                 return;
             }
 
-            // Проверка 2: Сидит ли прямо сейчас в лобби гость с таким же ником?
             if (sessionNicknames.containsValue(requestedNickname)) {
                 sendError(sessionId, "Этот никнейм прямо сейчас используется в игре. Выбери другой.");
                 return;
@@ -84,11 +84,10 @@ public class QuizService {
             player.setNickname(requestedNickname);
             player.setScore(0);
             player.setSecretToken(UUID.randomUUID().toString());
-            isNewUser = true;
+
             log.info("Создан новый игрок '{}'.", requestedNickname);
         }
 
-        // Применяем настройки для сессии
         player.setSessionId(sessionId);
         playerRepository.save(player);
 
@@ -96,7 +95,6 @@ public class QuizService {
         sessionNicknames.put(sessionId, player.getNickname());
         registeredSessions.add(sessionId);
 
-        // Отправляем успешный ответ и токен (если новый)
         messagingTemplate.convertAndSendToUser(
                 sessionId,
                 "/queue/reply",
@@ -108,11 +106,15 @@ public class QuizService {
     }
 
     public void joinAsGuest(String sessionId, String nickname) {
+        if (isPlaying) {
+            sendError(sessionId, "Игра уже идет. Подождите окончания матча.");
+            return;
+        }
+
         String guestName = (nickname == null || nickname.trim().isEmpty())
                 ? "Guest_" + sessionId.substring(0, 4)
                 : nickname.trim();
 
-        // Проверка: Занят ли никнейм в базе данных или сейчас в лобби?
         if (playerRepository.findByNickname(guestName).isPresent() || sessionNicknames.containsValue(guestName)) {
             sendError(sessionId, "Никнейм '" + guestName + "' занят. Выбери другой или зайди без имени (выдастся случайное).");
             return;
@@ -123,7 +125,6 @@ public class QuizService {
 
         log.info("Вошел гость: {}", guestName);
 
-        // Отправляем гостю сообщение об успехе (чтобы фронтенд пустил его в лобби)
         messagingTemplate.convertAndSendToUser(
                 sessionId,
                 "/queue/reply",
@@ -193,7 +194,7 @@ public class QuizService {
         }
     }
 
-    @Transactional(readOnly = true)
+
     protected void startGame() {
         List<Question> allQuestions = questionRepository.findAllWithOptions();
         if (allQuestions.isEmpty()) return;
