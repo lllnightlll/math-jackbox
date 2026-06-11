@@ -21,7 +21,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
         // Топики, куда СЕРВЕР будет отправлять сообщения (фронт на них подписывается)
-        registry.enableSimpleBroker("/topic", "/queue");
+        registry.enableSimpleBroker("/topic", "/query");
 
         // Префикс для сообщений, которые ФРОНТ отправляет на сервер
         registry.setApplicationDestinationPrefixes("/app");
