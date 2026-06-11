@@ -82,6 +82,24 @@
         </div>
     </nav>
 
+    <div id="prelogin-screen" class="prelogin">
+        <img src="assets/arts/bg1.jpg" alt="" class="prelogin-bg">
+
+        <div class="prelogin-buttons">
+            <button id="prelogin-start" class="prelogin-btn">
+                <img src="assets/arts/btn-start.png" alt="Начать игру">
+            </button>
+
+            <button id="prelogin-link-1" class="prelogin-btn">
+                <img src="assets/arts/btn-site1.png" alt="Сайт 1">
+            </button>
+
+            <button id="prelogin-link-2" class="prelogin-btn">
+                <img src="assets/arts/btn-site2.png" alt="Сайт 2">
+            </button>
+        </div>
+    </div>
+
     <div id="game-overlay"
         class="fixed inset-0 z-40 bg-white/60 dark:bg-gray-900/70 backdrop-blur-xl flex flex-col justify-center items-center transition-all duration-500 opacity-100 pointer-events-auto px-4">
         <div
@@ -117,7 +135,7 @@
     <main
         class="flex-grow max-w-7xl mx-auto w-full p-4 lg:p-8 flex flex-col lg:flex-row items-start gap-6 relative z-10">
 
-        <div id="register-screen" class="w-full lg:w-2/3 mx-auto">
+        <div id="register-screen" class="w-full lg:w-2/3 mx-auto hidden">
             <div
                 class="bg-white dark:bg-gray-800 rounded-3xl shadow-md border border-gray-200 dark:border-gray-700 p-6 md:p-8">
                 <h2 class="text-2xl font-semibold mb-4">Вход в игру</h2>
@@ -256,6 +274,10 @@
         let GLOBAL_LEADERBOARD = null;
         let currentTopMode = 'GAME';
 
+        const preloginScreenEl = document.getElementById('prelogin-screen');
+        const preloginStartEl = document.getElementById('prelogin-start');
+        const preloginLink1El = document.getElementById('prelogin-link-1');
+        const preloginLink2El = document.getElementById('prelogin-link-2');
         const registerScreenEl = document.getElementById('register-screen');
         const questionContainerEl = document.getElementById('question-container');
         const nicknameInputEl = document.getElementById('nickname');
@@ -323,6 +345,19 @@
             }
         });
 
+        preloginStartEl.addEventListener('click', () => {
+            preloginScreenEl.classList.add('hidden');
+            registerScreenEl.classList.remove('hidden');
+        });
+
+        preloginLink1El.addEventListener('click', () => {
+            window.open('https://web.telegram.org/k/#@nfbogachenko', '_blank');
+        });
+
+        preloginLink2El.addEventListener('click', () => {
+            window.open('https://web.telegram.org/k/#@nfbogachenko', '_blank');
+        });
+
 
 
 
@@ -350,6 +385,11 @@
         fetchGameData();
 
 
+
+        function isMobile() {
+            return /Mobi|Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i
+                .test(navigator.userAgent);
+        }
 
         function getRed(i) {
             if (i < COUNT * 0.1) {
@@ -443,7 +483,9 @@
             }
         }
 
-        updateState(currentTech);
+        if (!isMobile()) {
+            updateState(currentTech);
+        }
 
         async function animate() {
             requestAnimationFrame(animate);
@@ -481,7 +523,9 @@
 
             composer.render();
         }
-        animate();
+        if (!isMobile()) {
+            animate();
+        }
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -600,9 +644,7 @@
                     })
                 }
                 console.log("Успешно подключено к WebSocket!");
-                updateState('neutral');
-                setTimeout(() => { currentTech = 'off'; updateState(currentTech); }, 300);
-                setTimeout(() => { showReadyOverlay(); }, 700);
+                showReadyOverlay();
             };
 
             stompClient.onStompError = (frame) => {
@@ -614,6 +656,8 @@
 
         async function subscribe() {
             stompClient.subscribe('/topic/game', (message) => {
+                updateState('neutral');
+                setTimeout(() => { currentTech = 'off'; updateState(currentTech); }, 300);
                 const data = JSON.parse(message.body);
 
                 if (data.type === 'NEW_QUESTION') {
@@ -636,7 +680,7 @@
 
         function showReadyOverlay() {
             isReady = false;
-            readyBtnEl.textContent = 'Я готов';
+            readyBtnEl.textContent = 'Я готов 👉👈';
             readyBtnEl.disabled = false;
             readyBtnEl.classList.remove('bg-gray-500');
             readyBtnEl.classList.add('bg-emerald-600');
