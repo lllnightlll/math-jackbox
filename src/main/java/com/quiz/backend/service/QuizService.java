@@ -169,6 +169,7 @@ public class QuizService {
 
     // Игровой цикл - работает каждую 1 секунду
     @Scheduled(fixedRate = 1000)
+    @Transactional
     public void gameTick() {
         if (!isPlaying) {
             handleLobbyTick();
@@ -208,7 +209,7 @@ public class QuizService {
         questionTimer = 0; // Форсируем отправку первого вопроса
     }
 
-    @Transactional
+
     protected void handlePlayingTick() {
         boolean allAnswered = !answeredPlayers.isEmpty() && answeredPlayers.size() == sessionNicknames.size();
 
