@@ -122,8 +122,22 @@
         <div class="bg-gray-900 text-white rounded-2xl px-6 py-5 max-w-sm w-full text-center shadow-2xl">
             <h2 class="text-lg font-semibold mb-3">Ожидание других игроков</h2>
             <p class="text-sm text-gray-300 mb-5">
-                Когда будешь готов к старту, нажми кнопку ниже.
+                Выбери количество вопросов и когда будешь готов к старту, нажми кнопку ниже.
             </p>
+            <div id="question-settings" class="flex items-center justify-center gap-2 mb-5">
+                <button data-count="5" class="q-btn px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-600
+                     hover:bg-gray-800 transition">
+                    5
+                </button>
+                <button data-count="10" class="q-btn px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-600
+                     hover:bg-gray-800 transition">
+                    10
+                </button>
+                <button data-count="20" class="q-btn px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-600
+                     hover:bg-gray-800 transition">
+                    20
+                </button>
+            </div>
             <button id="ready-btn" type="button" class="w-full px-4 py-2.5 rounded-lg bg-emerald-600 text-sm font-medium
                    hover:bg-emerald-700 active:bg-emerald-800 transition">
                 Я готов 👉👈
@@ -161,7 +175,10 @@
             </div>
         </div>
 
-        <div id="register-error" class="mt-2 text-sm text-red-500 hidden">
+        <div id="register-error"
+            class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-40 hidden">
+            <div class="bg-gray-900 text-white rounded-2xl px-6 py-5 max-w-sm w-full text-center shadow-2xl">
+            </div>
         </div>
 
         <div id="question-container" class="w-full lg:w-2/3 mx-auto hidden">
@@ -262,6 +279,7 @@
         let update = false;
         let stompClient = null;
         let isReady = false;
+        let selectedQuestionCount = null;
         let currentQuestion = null;
         let currentQuestionId = null;
         let isAnswerSent = false;
@@ -279,13 +297,16 @@
         const preloginLink1El = document.getElementById('prelogin-link-1');
         const preloginLink2El = document.getElementById('prelogin-link-2');
         const registerScreenEl = document.getElementById('register-screen');
-        const questionContainerEl = document.getElementById('question-container');
         const nicknameInputEl = document.getElementById('nickname');
         const registerBtnEl = document.getElementById('register-btn');
         const registerBtnE2 = document.getElementById('guest-btn');
         const errorBoxEl = document.getElementById('register-error');
         const readyOverlayEl = document.getElementById('ready-overlay');
         const readyBtnEl = document.getElementById('ready-btn');
+        const questionSettingsEl = document.getElementById('question-settings');
+        const questionContainerEl = document.getElementById('question-container');
+
+
 
         const questionTextEl = document.getElementById('question-text');
         const questionIndexEl = document.getElementById('question-index');
@@ -483,10 +504,6 @@
             }
         }
 
-        if (!isMobile()) {
-            updateState(currentTech);
-        }
-
         async function animate() {
             requestAnimationFrame(animate);
 
@@ -523,9 +540,6 @@
 
             composer.render();
         }
-        if (!isMobile()) {
-            animate();
-        }
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -550,7 +564,12 @@
                 updateState(currentTech);
             }
         }
-        display();
+
+        if (!isMobile()) {
+            updateState(currentTech);
+            animate();
+            display();
+        }
 
 
 
@@ -591,6 +610,7 @@
                 questionTextEl.textContent = 'Загрузка вопроса...';
                 questionTimerEl.textContent = '';
                 answersEl.innerHTML = '';
+                showReadyOverlay();
 
                 return;
             }
@@ -605,6 +625,7 @@
             }
             errorBoxEl.textContent = message;
             errorBoxEl.classList.remove('hidden');
+            setTimeout(() => { errorBoxEl.classList.add('hidden'); }, 5000);
         }
 
         async function register(nickname, type) {
@@ -627,9 +648,14 @@
                 console.log('Подключено к WebSocket как:', nickname);
 
                 stompClient.subscribe('/user/queue/reply', (message) => {
-                    const payload = JSON.parse(message.body);
-                    handleUserReply(payload);
-                    console.log('MESSAGE /user/queue/reply RAW:', payload.type);
+                    try {
+                        let payload = JSON.parse(message.body);
+                        handleUserReply(payload);
+                        console.log('MESSAGE /user/queue/reply RAW:', payload.type);
+                    } catch (e) {
+                        console.error('Ошибка парсинга /user/queue/reply:', e, message.body);
+                        return;
+                    }
                 });
 
                 if (type) {
@@ -643,8 +669,6 @@
                         body: JSON.stringify({ nickname })
                     })
                 }
-                console.log("Успешно подключено к WebSocket!");
-                showReadyOverlay();
             };
 
             stompClient.onStompError = (frame) => {
@@ -655,22 +679,27 @@
         }
 
         async function subscribe() {
+            console.log("Успешно подключено к WebSocket!");
             stompClient.subscribe('/topic/game', (message) => {
                 updateState('neutral');
                 setTimeout(() => { currentTech = 'off'; updateState(currentTech); }, 300);
                 const data = JSON.parse(message.body);
 
                 if (data.type === 'NEW_QUESTION') {
-                    loadQuestion(data); hideReady();
+                    questionIndex += 1;
+                    loadQuestion(data);
+                    hideReady();
                     questionTimerEl.classList.remove('hidden');
                     topButtonEl.classList.add('hidden');
                 } else if (data.type === 'GAME_RESULT') {
                     GAME_RESULT = data.scores;
                     tryShowTop();
+                    questionIndex = 0;
                     return;
                 } else if (data.type === 'GLOBAL_LEADERBOARD') {
                     GLOBAL_LEADERBOARD = data.leaderboard;
                     tryShowTop();
+                    questionIndex = 0;
                     return;
                 }
             });
@@ -685,6 +714,29 @@
             readyBtnEl.classList.remove('bg-gray-500');
             readyBtnEl.classList.add('bg-emerald-600');
             readyOverlayEl.classList.remove('hidden');
+
+            if (questionSettingsEl) {
+                questionSettingsEl.querySelectorAll('.q-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const count = parseInt(btn.dataset.count, 10);
+                        selectedQuestionCount = count;
+
+                        questionSettingsEl.querySelectorAll('.q-btn').forEach(b => {
+                            b.classList.remove('bg-emerald-600', 'text-white');
+                        });
+                        btn.classList.add('bg-emerald-600', 'text-white');
+
+                        if (stompClient && stompClient.connected) {
+                            stompClient.publish({
+                                destination: '/app/settings',
+                                body: JSON.stringify({ questionCount: count })
+                            });
+                        } else {
+                            console.warn('stompClient не подключен, настройки вопросов не отправлены');
+                        }
+                    });
+                });
+            }
         }
 
         function sendReady() {
@@ -792,8 +844,6 @@
                 b.disabled = true;
                 b.classList.add('opacity-70', 'cursor-not-allowed');
             });
-
-            questionIndex += 1;
         }
 
 
